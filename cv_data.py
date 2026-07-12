@@ -55,6 +55,14 @@ class MidpointCurrents:
     def average_current(self) -> float:
         return (self.current_high + self.current_low) / 2
 
+    @property
+    def current_difference(self) -> float:
+        return self.current_high - self.current_low
+
+    @property
+    def half_current_difference(self) -> float:
+        return (self.current_high - self.current_low) / 2
+
 
 @dataclass(frozen=True)
 class CVData:
@@ -297,12 +305,14 @@ def summarize_data(data_sets: list[CVData], current_unit: str = "mA", cycle_numb
             lines.append(f"  Middle E: {midpoint_currents.potential:g} V")
             lines.append(f"  current_high: {midpoint_currents.current_high * current_scale:.6g} {current_unit}")
             lines.append(f"  current_low: {midpoint_currents.current_low * current_scale:.6g} {current_unit}")
-            lines.append(f"  average_current: {midpoint_currents.average_current * current_scale:.6g} {current_unit}")
+            lines.append(
+                f"  delta_current: {midpoint_currents.half_current_difference * current_scale:.6g} {current_unit}"
+            )
         else:
             lines.append("  Middle E: --")
             lines.append(f"  current_high: -- {current_unit}")
             lines.append(f"  current_low: -- {current_unit}")
-            lines.append(f"  average_current: -- {current_unit}")
+            lines.append(f"  delta_current: -- {current_unit}")
         lines.append("")
 
     return "\n".join(lines).strip()

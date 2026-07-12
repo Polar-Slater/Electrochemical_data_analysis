@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import math
 import re
 import sys
@@ -20,7 +21,6 @@ from cv_data import read_cv_data as read_ecsa_cv_data
 from cv_data import summarize_data as summarize_ecsa_data
 from plot_cv_txt import CVData as ActiveCVData
 from plot_cv_txt import read_cv_data as read_active_cv_data
-from plot_cv_txt import summarize_cv_data
 from plot_durability_txt import DurabilityData, read_durability_data, summarize_durability_data
 from plot_eis_txt import EISData, read_eis_data, summarize_eis_data
 from plot_lsv_txt import LSVData, read_lsv_data, summarize_lsv_data
@@ -200,7 +200,8 @@ class FolderBatchPlotApp(ttk.Frame):
             row=0, column=0, sticky="ew"
         )
         ttk.Button(buttons, text="Save plot", command=self.save_plot).grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(buttons, text="Clear", command=self.clear_folder).grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        ttk.Button(buttons, text="Export data", command=self.export_data).grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        ttk.Button(buttons, text="Clear", command=self.clear_folder).grid(row=3, column=0, sticky="ew", pady=(8, 0))
 
         plot_frame = ttk.LabelFrame(sidebar, text="Plot", padding=10)
         plot_frame.grid(row=3, column=0, sticky="ew", pady=(0, 12))
@@ -320,7 +321,7 @@ class FolderBatchPlotApp(ttk.Frame):
         ttk.Label(area_frame, text="cm^2", style="Panel.TLabel").grid(row=0, column=1, sticky="w", padx=(8, 0))
         ttk.Button(area_frame, text="Clear", command=self.clear_working_area).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        y_range = ttk.LabelFrame(sidebar, text="OCV / CP Y range", padding=10)
+        y_range = ttk.LabelFrame(sidebar, text="OCV / CP Potential range", padding=10)
         y_range.grid(row=9, column=0, sticky="ew", pady=(0, 12))
         y_range.columnconfigure((1, 3), weight=1)
         ttk.Label(y_range, text="Min", style="Panel.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 6))
@@ -607,6 +608,8 @@ class FolderBatchPlotApp(ttk.Frame):
                     counts["ECSA"] += 1
                 if self.is_cv_activation_file(item):
                     counts["CV active"] += 1
+            elif item.measurement == "CP" and self.is_deposition_file(item):
+                continue
             elif item.measurement in counts:
                 counts[item.measurement] += 1
         count_text = ", ".join(f"{name}: {count}" for name, count in counts.items())
@@ -624,7 +627,13 @@ class FolderBatchPlotApp(ttk.Frame):
             return self.is_ecsa_scan_rate_file(item)
         if selected == "CV active":
             return self.is_cv_activation_file(item)
+        if selected == "CP":
+            return item.measurement == "CP" and not self.is_deposition_file(item)
         return item.measurement == selected
+
+    @staticmethod
+    def is_deposition_file(item: FolderFile) -> bool:
+        return "deposition" in item.path.name.lower()
 
     @staticmethod
     def is_ecsa_scan_rate_file(item: FolderFile) -> bool:
@@ -955,7 +964,7 @@ class FolderBatchPlotApp(ttk.Frame):
             ax_cv.legend(loc="best", fontsize=8)
 
         average_points = [
-            (data.metadata.scan_rate_mv_s, data.midpoint_currents_for_cycle(cycle).average_current * scale)
+            (data.metadata.scan_rate_mv_s, data.midpoint_currents_for_cycle(cycle).half_current_difference * scale)
             for data in data_sets
             if data.metadata.scan_rate_mv_s is not None and data.midpoint_currents_for_cycle(cycle) is not None
         ]
@@ -970,8 +979,20 @@ class FolderBatchPlotApp(ttk.Frame):
                 fit_x = [min(scan_rates), max(scan_rates)]
                 fit_y = [slope * value + intercept for value in fit_x]
                 ax_average.plot(fit_x, fit_y, linewidth=1.4, color="#b84a3a", label="Linear fit")
+                slope_f = self.ecsa_slope_farads(data_sets, cycle)
+                if slope_f is not None:
+                    ax_average.text(
+                        0.04,
+                        0.94,
+                        self.ecsa_capacitance_label(slope_f),
+                        transform=ax_average.transAxes,
+                        va="top",
+                        ha="left",
+                        fontsize=10,
+                        bbox={"facecolor": "white", "edgecolor": "#d5dde2", "alpha": 0.85},
+                    )
                 ax_average.legend(loc="best", fontsize=8)
-        ax_average.set_title(f"ECSA average current vs scan rate, cycle {cycle}")
+        ax_average.set_title(f"ECSA Delta current vs scan rate, cycle {cycle}")
         ax_average.set_xlabel("Scan rate / mV s^-1")
         ax_average.set_ylabel(self.average_axis_label())
         ax_average.grid(self.show_grid.get(), alpha=0.3)
@@ -991,12 +1012,25 @@ class FolderBatchPlotApp(ttk.Frame):
                 failures.append(f"{item.path.name}: {exc}")
                 continue
             self.ax.plot(data.potentials, [current * scale for current in data.currents], linewidth=1.3, label=item.label)
-            if data.zero_crossings:
-                self.ax.scatter([crossing.potential for crossing in data.zero_crossings], [0 for _ in data.zero_crossings], s=20, zorder=3)
-            details.append(f"{item.path.name}\n{summarize_cv_data(data)}")
+            details.append(f"{item.path.name}\n{self.summarize_active_cv_data(data)}")
             loaded += 1
         self.decorate_axis("CV active", "Potential / V", f"Current / {self.current_units.get()}", loaded)
         self.finish_plot("CV active", loaded, failures, details)
+
+    @staticmethod
+    def summarize_active_cv_data(data: ActiveCVData) -> str:
+        lines: list[str] = []
+        if data.metadata.init_e is not None:
+            lines.append(f"Init E: {data.metadata.init_e:g} V")
+        if data.metadata.high_e is not None:
+            lines.append(f"High E: {data.metadata.high_e:g} V")
+        if data.metadata.low_e is not None:
+            lines.append(f"Low E: {data.metadata.low_e:g} V")
+        if data.metadata.segments is not None:
+            lines.append(f"Segments: {data.metadata.segments}")
+        if data.metadata.cycles is not None:
+            lines.append(f"Cycles: {data.metadata.cycles:g}")
+        return "\n".join(lines) if lines else "No CV metadata found."
 
     def decorate_axis(self, title: str, xlabel: str, ylabel: str, loaded: int) -> None:
         self.ax.set_title(title)
@@ -1186,6 +1220,331 @@ class FolderBatchPlotApp(ttk.Frame):
         self.figure.savefig(output, dpi=300, bbox_inches="tight")
         self.status.set(f"Saved plot to {Path(output).name}")
 
+    def export_data(self) -> None:
+        if self.folder is None:
+            messagebox.showinfo("No folder to export", "Import a folder first.")
+            return
+
+        output_dir = self.folder / "Processed data"
+        output_dir.mkdir(exist_ok=True)
+
+        written: list[Path] = []
+        warnings: list[str] = []
+        exporters = [
+            self.export_lsv_data,
+            self.export_tafel_data,
+            self.export_eis_data,
+            self.export_ecsa_data,
+            self.export_cp_data,
+        ]
+        for exporter in exporters:
+            try:
+                written.extend(exporter(output_dir))
+            except Exception as exc:
+                warnings.append(str(exc))
+
+        if not written:
+            messagebox.showinfo("No data exported", "No readable LSV, Tafel, EIS, ECSA, or CP data were found.")
+            self.status.set("No data exported.")
+            return
+
+        message = f"Exported {len(written)} file(s) to {output_dir}"
+        if warnings:
+            message += f"\n\nWarnings:\n" + "\n".join(warnings[:5])
+        messagebox.showinfo("Export complete", message)
+        self.status.set(f"Exported {len(written)} file(s) to {output_dir.name}.")
+
+    def export_lsv_data(self, output_dir: Path) -> list[Path]:
+        items = [item for item in self.included_file_items() if item.measurement == "LSV"]
+        if not items:
+            return []
+
+        scale = self.current_scale()
+        original_scale = 1000
+        rs_values = self.get_lsv_rs_values()
+        compensation_fraction, _compensation_error = self.get_compensation_fraction()
+        rhe_offset, _rhe_error = self.get_rhe_offset()
+        written: list[Path] = []
+
+        for item in items:
+            try:
+                data = self.get_lsv(item)
+            except Exception:
+                continue
+
+            output = output_dir / f"{item.path.stem}_processed.csv"
+            adjusted_potentials = self.get_adjusted_lsv_potentials(
+                data,
+                rhe_offset,
+                rs_values.get(item.path),
+                compensation_fraction,
+            )
+            rows_written = 0
+            with output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                writer.writerow(["Source file", item.path.name])
+                writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
+                writer.writerow(["Working area (cm^2)", self.format_optional_value(self.safe_working_area())])
+                writer.writerow([])
+                writer.writerow(["Point", "Original Potential (V)", "Original Current (mA)", self.lsv_potential_axis_label(rhe_offset, compensation_fraction, rs_values, [item]), self.current_axis_label()])
+                for index, values in enumerate(
+                    zip(
+                        data.potentials,
+                        [current * original_scale for current in data.currents],
+                        adjusted_potentials,
+                        [current * scale for current in data.currents],
+                    ),
+                    start=1,
+                ):
+                    writer.writerow([index, *values])
+                    rows_written += 1
+            if rows_written:
+                written.append(output)
+
+        return written
+
+    def export_tafel_data(self, output_dir: Path) -> list[Path]:
+        items = [item for item in self.included_file_items() if item.measurement == "LSV"]
+        if not items:
+            return []
+
+        try:
+            working_area = self.get_working_area()
+        except ValueError:
+            working_area = None
+        if working_area is None:
+            return []
+
+        rs_values = self.get_lsv_rs_values()
+        compensation_fraction, _compensation_error = self.get_compensation_fraction()
+        rhe_offset, _rhe_error = self.get_rhe_offset()
+        try:
+            equilibrium_potential = self.get_equilibrium_potential()
+        except ValueError:
+            equilibrium_potential = 1.23
+        overpotential_range, _overpotential_range_error = self.get_tafel_overpotential_range()
+        written: list[Path] = []
+
+        for item in items:
+            try:
+                data = self.get_lsv(item)
+            except Exception:
+                continue
+
+            output = output_dir / f"{item.path.stem}_tafel.csv"
+            adjusted_potentials = self.get_adjusted_lsv_potentials(
+                data,
+                rhe_offset,
+                rs_values.get(item.path),
+                compensation_fraction,
+            )
+            rows_written = 0
+            with output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                writer.writerow(["Source file", item.path.name])
+                writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
+                writer.writerow(["Equilibrium potential (V vs. RHE)", f"{equilibrium_potential:g}"])
+                writer.writerow(["Working area (cm^2)", f"{working_area:g}"])
+                writer.writerow([])
+                writer.writerow(["Point", "Corrected potential (V)", "Current density (mA/cm^2)", "log10(|j| / mA cm^-2)", "Overpotential (V)"])
+                for potential, current in zip(adjusted_potentials, data.currents):
+                    current_density = current * 1000 / working_area
+                    if current_density == 0:
+                        continue
+                    log_current = math.log10(abs(current_density))
+                    overpotential = potential - equilibrium_potential
+                    if overpotential_range is not None and not (overpotential_range[0] <= overpotential <= overpotential_range[1]):
+                        continue
+                    rows_written += 1
+                    writer.writerow([rows_written, potential, current_density, log_current, overpotential])
+            if rows_written:
+                written.append(output)
+
+        return written
+
+    def export_eis_data(self, output_dir: Path) -> list[Path]:
+        items = [item for item in self.included_file_items() if item.measurement == "EIS"]
+        if not items:
+            return []
+
+        impedance_scale = self.impedance_scale()
+        impedance_unit = self.impedance_unit()
+        written: list[Path] = []
+
+        for item in items:
+            try:
+                data = self.get_eis(item)
+            except Exception:
+                continue
+
+            output = output_dir / f"{item.path.stem}_processed.csv"
+            rows_written = 0
+            with output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                writer.writerow(["Source file", item.path.name])
+                writer.writerow(["Working area (cm^2)", self.format_optional_value(self.safe_working_area())])
+                writer.writerow([])
+                writer.writerow(["Frequency (Hz)", f"Z' ({impedance_unit})", f"-Z'' ({impedance_unit})", f"Z ({impedance_unit})", "Phase (deg)"])
+                for row in zip(
+                    data.frequency_hz,
+                    [value * impedance_scale for value in data.z_real_ohm],
+                    [value * impedance_scale for value in data.minus_z_imag_ohm],
+                    [value * impedance_scale for value in data.z_abs_ohm],
+                    data.phase_deg,
+                ):
+                    writer.writerow(row)
+                    rows_written += 1
+            if rows_written:
+                written.append(output)
+
+        return written
+
+    def export_ecsa_data(self, output_dir: Path) -> list[Path]:
+        items = [item for item in self.included_file_items() if self.is_ecsa_scan_rate_file(item)]
+        if not items:
+            return []
+
+        data_sets: list[ECSACVData] = []
+        for item in items:
+            try:
+                data_sets.append(self.get_ecsa_cv(item))
+            except Exception:
+                continue
+        if not data_sets:
+            return []
+
+        data_sets.sort(key=lambda data: data.sort_key)
+        cycle = self.selected_cycle_number(data_sets)
+        scale = self.current_scale()
+        output_stem = self.ecsa_export_stem(data_sets[0].path)
+        summary_output = output_dir / f"{output_stem}_scan_rate_delta_j.csv"
+        cv_output = output_dir / f"{output_stem}_cycle_cv.csv"
+        written: list[Path] = []
+
+        rows: list[tuple[float, float]] = []
+        for data in data_sets:
+            midpoint_currents = data.midpoint_currents_for_cycle(cycle)
+            scan_rate = data.metadata.scan_rate_mv_s
+            if midpoint_currents is None or scan_rate is None:
+                continue
+            rows.append((scan_rate, midpoint_currents.half_current_difference * scale))
+        rows.sort(key=lambda row: row[0])
+        if rows:
+            fit = self.linear_regression(rows)
+            formula = ""
+            if fit is not None:
+                slope, intercept = fit
+                y_label = "delta j" if self.safe_working_area() is not None else "delta current"
+                y_unit = "mA/cm^2" if self.safe_working_area() is not None else self.current_units.get()
+                formula = f"{y_label} ({y_unit}) = {slope:.10g} * scan rate (mV/s) + {intercept:.10g}"
+            cdl_f = self.ecsa_slope_farads(data_sets, cycle)
+            cdl_header = "C_dl (mF/cm^2)" if self.safe_working_area() is not None else "C_dl (mF)"
+            cdl_value = "" if cdl_f is None else f"{cdl_f * 1000:.10g}"
+            with summary_output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                value_header = "Delta j mA/cm^2" if self.safe_working_area() is not None else f"Delta current {self.current_units.get()}"
+                writer.writerow(["Scan rate mV/s", value_header, "Fitted line formula", cdl_header])
+                for scan_rate, value in rows:
+                    writer.writerow([f"{scan_rate:g}", f"{value:.10g}", formula, cdl_value])
+            written.append(summary_output)
+
+        max_points = max((len(data.cycle_potentials(cycle)) for data in data_sets), default=0)
+        if max_points:
+            with cv_output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                header: list[str] = []
+                scan_rate_row: list[str] = []
+                for data in data_sets:
+                    current_header = "Current density mA/cm^2" if self.safe_working_area() is not None else f"Current {self.current_units.get()}"
+                    header.extend([f"{data.path.name} Potential V", current_header])
+                    scan_rate_label = "" if data.metadata.scan_rate_mv_s is None else f"{data.metadata.scan_rate_mv_s:g} mV/s"
+                    scan_rate_row.extend([scan_rate_label, scan_rate_label])
+                writer.writerow(header)
+                writer.writerow(scan_rate_row)
+                for index in range(max_points):
+                    row: list[str] = []
+                    for data in data_sets:
+                        potentials = data.cycle_potentials(cycle)
+                        currents = data.cycle_currents(cycle)
+                        if index < len(potentials):
+                            row.append(f"{potentials[index]:.10g}")
+                            row.append(f"{currents[index] * scale:.10g}")
+                        else:
+                            row.extend(["", ""])
+                    writer.writerow(row)
+            written.append(cv_output)
+
+        return written
+
+    def export_cp_data(self, output_dir: Path) -> list[Path]:
+        items = [
+            item
+            for item in self.included_file_items()
+            if item.measurement == "CP" and not self.is_deposition_file(item)
+        ]
+        if not items:
+            return []
+
+        rhe_offset, _rhe_error = self.get_rhe_offset()
+        cp_ir, _cp_ir_error = self.get_cp_ir_compensation()
+        written: list[Path] = []
+
+        for item in items:
+            try:
+                data = self.get_cp(item)
+            except Exception:
+                continue
+
+            output = output_dir / f"{item.path.stem}_durability_data.csv"
+            adjusted_potentials = self.get_adjusted_cp_potentials(data, rhe_offset, cp_ir)
+            current_density = self.cp_current_density(data)
+            rows_written = 0
+            with output.open("w", encoding="utf-8-sig", newline="") as destination:
+                writer = csv.writer(destination)
+                writer.writerow(["Source file", item.path.name])
+                writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
+                writer.writerow(["Working area (cm^2)", self.format_optional_value(self.safe_working_area())])
+                if cp_ir is None:
+                    writer.writerow(["Solution resistance (ohm)", "", "Compensation level (%)", ""])
+                else:
+                    resistance, compensation_fraction = cp_ir
+                    writer.writerow(["Solution resistance (ohm)", f"{resistance:g}", "Compensation level (%)", f"{compensation_fraction * 100:g}"])
+                writer.writerow([])
+                writer.writerow(["Mode", "Current (A)", "Time (s)", "Current density (mA/cm^2)", "Time (sec)", "Original Potential (V)", self.cp_potential_axis_label(rhe_offset, cp_ir)])
+                for time_sec, original, adjusted in zip(data.times_sec, data.potentials_v, adjusted_potentials):
+                    writer.writerow([
+                        data.metadata.mode or "",
+                        self.format_optional_value(data.display_current_a),
+                        self.format_optional_value(data.metadata.duration_s),
+                        self.format_optional_value(current_density),
+                        time_sec,
+                        original,
+                        adjusted,
+                    ])
+                    rows_written += 1
+            if rows_written:
+                written.append(output)
+
+        return written
+
+    @staticmethod
+    def format_optional_value(value: float | None) -> str:
+        if value is None:
+            return ""
+        return f"{value:g}"
+
+    @staticmethod
+    def ecsa_export_stem(path: Path) -> str:
+        stem = ECSA_SCAN_RATE.sub("", path.stem)
+        stem = re.sub(r"[\s_-]+", "_", stem).strip("_")
+        return stem or path.stem
+
+    def safe_working_area(self) -> float | None:
+        try:
+            return self.get_working_area()
+        except ValueError:
+            return None
+
     def get_working_area(self) -> float | None:
         raw_value = self.working_area.get().strip()
         if not raw_value:
@@ -1330,10 +1689,38 @@ class FolderBatchPlotApp(ttk.Frame):
     def average_axis_label(self) -> str:
         try:
             if self.get_working_area() is not None:
-                return "Average current density / mA cm^-2"
+                return "Delta j / mA cm^-2"
         except ValueError:
             pass
-        return f"Average current / {self.current_units.get()}"
+        return f"Delta current / {self.current_units.get()}"
+
+    def ecsa_slope_farads(self, data_sets: list[ECSACVData], cycle: int) -> float | None:
+        si_points: list[tuple[float, float]] = []
+        for data in data_sets:
+            midpoint_currents = data.midpoint_currents_for_cycle(cycle)
+            scan_rate_mv_s = data.metadata.scan_rate_mv_s
+            if midpoint_currents is None or scan_rate_mv_s is None:
+                continue
+            si_points.append((scan_rate_mv_s / 1000, midpoint_currents.half_current_difference))
+        fit = self.linear_regression(si_points)
+        if fit is None:
+            return None
+        slope, _intercept = fit
+        try:
+            working_area = self.get_working_area()
+        except ValueError:
+            working_area = None
+        if working_area is not None:
+            slope = slope / working_area
+        return slope
+
+    def ecsa_capacitance_label(self, slope_f: float) -> str:
+        try:
+            if self.get_working_area() is not None:
+                return f"slope = {slope_f:.6g} F cm^-2\nC_dl = {slope_f * 1000:.6g} mF cm^-2"
+        except ValueError:
+            pass
+        return f"slope = {slope_f:.6g} F\nC_dl = {slope_f * 1000:.6g} mF"
 
     def clear_working_area(self) -> None:
         self.working_area.set("")

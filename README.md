@@ -1,5 +1,7 @@
 # Electrochemical data analysis toolbox
 
+Note: The code in this toolbox was generated with assistance from AI.
+
 This GUI opens the existing electrochemical plotting tools from one control panel:
 
 - Open circuit voltage
