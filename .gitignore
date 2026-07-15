@@ -1,0 +1,7 @@
+# Python-generated cache and bytecode
+__pycache__/
+*.py[cod]
+*.pyc.*
+
+# Local Codex workspace metadata
+.agents/
