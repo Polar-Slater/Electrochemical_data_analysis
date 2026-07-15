@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tkinter as tk
@@ -11,8 +12,10 @@ from typing import Callable
 
 from cv_multi_plot_gui import CVMultiPlotApp
 from cv_plot_gui import CVPlotApp
+from durability_plot_gui import DurabilityPlotApp
 from eis_plot_gui import EISPlotApp
 from lsv_plot_gui import LSVPlotApp
+from ocv_plot_gui import OCVPlotApp
 
 
 APP_TITLE = "Electrochemical data analysis toolbox"
@@ -25,6 +28,20 @@ BORDER = "#d8dee7"
 BASE_DIR = Path(__file__).resolve().parent
 DRTTOOLS_DIR = BASE_DIR / "DRTtools modified"
 DRTTOOLS_LAUNCHER = DRTTOOLS_DIR / "launch.py"
+FOLDER_BATCH_DIR = BASE_DIR / "Folder batch plotter"
+FOLDER_BATCH_GUI = FOLDER_BATCH_DIR / "folder_batch_plot_gui.py"
+
+
+def create_folder_batch_plotter(master: tk.Misc | None = None, on_return=None) -> ttk.Frame:
+    if str(FOLDER_BATCH_DIR) not in sys.path:
+        sys.path.insert(0, str(FOLDER_BATCH_DIR))
+    spec = importlib.util.spec_from_file_location("folder_batch_plot_gui", FOLDER_BATCH_GUI)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load {FOLDER_BATCH_GUI}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.FolderBatchPlotApp(master, on_return=on_return)
 
 
 @dataclass(frozen=True)
@@ -83,16 +100,23 @@ class DRTToolsPage(ttk.Frame):
         self.status.set("Opened DRTtools.")
 
 
+class ExperimentProcedurePage(ttk.Frame):
+    def __init__(self, master: tk.Misc | None = None, on_return=None) -> None:
+        super().__init__(master, style="Panel.TFrame", padding=28)
+        self.on_return = on_return
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
+
+        ttk.Label(self, text="Experiment procedure", style="HomeTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(self, text="Return", command=self.on_return).grid(row=1, column=0, sticky="w", pady=(18, 0))
+
+
 TOOLS = [
     ToolDefinition(
-        title="Reference electrode potential",
-        subtitle="Find ref electrode potential from CV scan",
-        page_factory=CVPlotApp,
-    ),
-    ToolDefinition(
-        title="ECSA identifier",
-        subtitle="C_dl from CV scan",
-        page_factory=CVMultiPlotApp,
+        title="Open circuit voltage",
+        subtitle="Plot OCV potential over time",
+        page_factory=OCVPlotApp,
     ),
     ToolDefinition(
         title="LSV Plotter",
@@ -105,9 +129,34 @@ TOOLS = [
         page_factory=EISPlotApp,
     ),
     ToolDefinition(
+        title="ECSA identifier",
+        subtitle="C_dl from CV scan",
+        page_factory=CVMultiPlotApp,
+    ),
+    ToolDefinition(
+        title="Durability",
+        subtitle="Plot CP or multi-current-step potential over time",
+        page_factory=DurabilityPlotApp,
+    ),
+    ToolDefinition(
         title="DRTtools",
         subtitle="Credits: Dr. Francesco Ciucci's LAB",
         page_factory=DRTToolsPage,
+    ),
+    ToolDefinition(
+        title="Reference electrode potential",
+        subtitle="Find ref electrode potential from CV scan",
+        page_factory=CVPlotApp,
+    ),
+    ToolDefinition(
+        title="Folder batch plotter",
+        subtitle="Import one folder and plot grouped OCV, LSV, EIS, ECSA, CP, and CV",
+        page_factory=create_folder_batch_plotter,
+    ),
+    ToolDefinition(
+        title="Experiment procedure",
+        subtitle="",
+        page_factory=ExperimentProcedurePage,
     ),
 ]
 
@@ -159,7 +208,7 @@ class ElectrochemicalToolbox(tk.Tk):
 
         button_grid = ttk.Frame(self.home_page, style="Panel.TFrame")
         button_grid.grid(row=2, column=0, sticky="nsew")
-        button_grid.columnconfigure((0, 1), weight=1, uniform="tool")
+        button_grid.columnconfigure((0, 1, 2), weight=1, uniform="tool")
         button_grid.rowconfigure((0, 1, 2), weight=1, uniform="tool")
 
         for index, tool in enumerate(TOOLS):
@@ -181,13 +230,15 @@ class ElectrochemicalToolbox(tk.Tk):
                 highlightbackground=BORDER,
                 font=("Segoe UI", 15, "bold"),
                 cursor="hand2",
-                wraplength=440,
+                wraplength=300,
             )
-            button.grid(row=index // 2, column=index % 2, sticky="nsew", padx=10, pady=10)
+            button.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
 
-        ttk.Label(self.home_page, textvariable=self.status, style="HomeMuted.TLabel").grid(
-            row=3, column=0, sticky="w", pady=(22, 0)
-        )
+        footer = ttk.Frame(self.home_page, style="Panel.TFrame")
+        footer.grid(row=3, column=0, sticky="ew", pady=(22, 0))
+        footer.columnconfigure(0, weight=1)
+        ttk.Label(footer, textvariable=self.status, style="HomeMuted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(footer, text="Close", command=self.destroy).grid(row=0, column=1, sticky="e")
         self.status.set("Choose a function.")
 
     def show_tool(self, tool: ToolDefinition) -> None:

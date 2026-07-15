@@ -336,13 +336,13 @@ class CVMultiPlotApp(ttk.Frame):
 
     def average_axis_label(self) -> str:
         if self.use_current_density():
-            return "Average current density / mA cm$^{-2}$"
-        return f"Average current / {self.current_units.get()}"
+            return r"$\Delta j$ / mA cm$^{-2}$"
+        return f"Delta current / {self.current_units.get()}"
 
     def average_plot_title(self) -> str:
         if self.use_current_density():
-            return f"Average current density vs scan rate, cycle {self.selected_cycle_number()}"
-        return f"Average current vs scan rate, cycle {self.selected_cycle_number()}"
+            return rf"$\Delta j = (j_a - j_c) / 2$ vs scan rate, cycle {self.selected_cycle_number()}"
+        return f"Delta current = (ia - ic) / 2 vs scan rate, cycle {self.selected_cycle_number()}"
 
     def max_cycle_count(self) -> int:
         if not self.data_sets:
@@ -394,28 +394,28 @@ class CVMultiPlotApp(ttk.Frame):
         scale = self.current_scale()
         cycle_number = self.selected_cycle_number()
         ax.clear()
-        average_points = [
+        difference_points = [
             (
                 data.metadata.scan_rate_mv_s,
-                data.midpoint_currents_for_cycle(cycle_number).average_current * scale,
+                data.midpoint_currents_for_cycle(cycle_number).half_current_difference * scale,
             )
             for data in self.data_sets
             if data.metadata.scan_rate_mv_s is not None and data.midpoint_currents_for_cycle(cycle_number) is not None
         ]
-        average_points.sort(key=lambda point: point[0])
-        if average_points:
-            scan_rates = [point[0] for point in average_points]
-            average_currents = [point[1] for point in average_points]
+        difference_points.sort(key=lambda point: point[0])
+        if difference_points:
+            scan_rates = [point[0] for point in difference_points]
+            difference_currents = [point[1] for point in difference_points]
             ax.plot(
                 scan_rates,
-                average_currents,
+                difference_currents,
                 linestyle="None",
                 marker="o",
                 color=ACCENT,
                 label="Data",
             )
 
-            fit = self.linear_regression(average_points)
+            fit = self.linear_regression(difference_points)
             if fit is not None:
                 slope_display, intercept_display = fit
                 fit_x = [min(scan_rates), max(scan_rates)]
@@ -462,7 +462,7 @@ class CVMultiPlotApp(ttk.Frame):
             scan_rate_mv_s = data.metadata.scan_rate_mv_s
             if midpoint_currents is None or scan_rate_mv_s is None:
                 continue
-            si_points.append((scan_rate_mv_s / 1000, midpoint_currents.average_current))
+            si_points.append((scan_rate_mv_s / 1000, midpoint_currents.half_current_difference))
         fit = self.linear_regression(si_points)
         if fit is None:
             return None
@@ -475,8 +475,8 @@ class CVMultiPlotApp(ttk.Frame):
 
     def capacitance_label(self, slope_f: float) -> str:
         if self.use_current_density():
-            return f"k = {slope_f:.6g} F cm$^{{-2}}$\nC_dl = {slope_f * 1000:.6g} mF cm$^{{-2}}$"
-        return f"k = {slope_f:.6g} F\nC_dl = {slope_f * 1000:.6g} mF"
+            return f"slope = {slope_f:.6g} F cm$^{{-2}}$\nC_dl = {slope_f * 1000:.6g} mF cm$^{{-2}}$"
+        return f"slope = {slope_f:.6g} F\nC_dl = {slope_f * 1000:.6g} mF"
 
     def plot_loaded_data(self) -> None:
         if not self.data_sets:
@@ -512,7 +512,7 @@ class CVMultiPlotApp(ttk.Frame):
             base_path = base_path.with_suffix(".png")
         cycle_number = self.selected_cycle_number()
         cv_path = base_path.with_name(f"{base_path.stem}_cycle_{cycle_number}_cv{base_path.suffix}")
-        average_path = base_path.with_name(f"{base_path.stem}_cycle_{cycle_number}_average_current_vs_scan_rate{base_path.suffix}")
+        average_path = base_path.with_name(f"{base_path.stem}_cycle_{cycle_number}_delta_current_vs_scan_rate{base_path.suffix}")
 
         cv_figure = Figure(figsize=(7, 5), dpi=100)
         cv_axis = cv_figure.add_subplot(111)
@@ -547,9 +547,9 @@ class CVMultiPlotApp(ttk.Frame):
 
         base_path = Path(output)
         if not base_path.suffix:
-            base_path = base_path.with_suffix(".csv")
+            base_path = base_path.with_suffix(".cvs")
         cycle_number = self.selected_cycle_number()
-        average_path = base_path.with_name(f"{base_path.stem}_scan_rate_current{base_path.suffix}")
+        average_path = base_path.with_name(f"{base_path.stem}_scan_rate_delta_current{base_path.suffix}")
         cv_path = base_path
 
         self._export_average_current_data(average_path)
@@ -558,8 +558,8 @@ class CVMultiPlotApp(ttk.Frame):
 
     def default_export_filename(self) -> str:
         if self.files:
-            return f"{self.files[0].stem}.csv"
-        return "CV_multi_scan_rate_data.csv"
+            return f"{self.files[0].stem}.cvs"
+        return "CV_multi_scan_rate_data.cvs"
 
     def _export_average_current_data(self, output_path: Path) -> None:
         rows: list[tuple[float, float]] = []
@@ -570,19 +570,23 @@ class CVMultiPlotApp(ttk.Frame):
             scan_rate = data.metadata.scan_rate_mv_s
             if midpoint_currents is None or scan_rate is None:
                 continue
-            rows.append((scan_rate, midpoint_currents.average_current * scale))
+            rows.append((scan_rate, midpoint_currents.half_current_difference * scale))
         rows.sort(key=lambda row: row[0])
         fit = self.linear_regression(rows)
         formula = ""
         if fit is not None:
             slope, intercept = fit
-            y_label = "current density" if self.use_current_density() else "current"
+            y_label = "delta j" if self.use_current_density() else "delta current"
             y_unit = "mA/cm^2" if self.use_current_density() else self.current_units.get()
             formula = f"{y_label} ({y_unit}) = {slope:.10g} * scan rate (mV/s) + {intercept:.10g}"
 
         with output_path.open("w", encoding="utf-8", newline="") as export:
             writer = csv.writer(export)
-            value_header = "Current density mA/cm^2" if self.use_current_density() else f"Current {self.current_units.get()}"
+            value_header = (
+                "Delta j mA/cm^2"
+                if self.use_current_density()
+                else f"Delta current {self.current_units.get()}"
+            )
             writer.writerow(["Scan rate mV/s", value_header, "Fitted line formula"])
             for scan_rate, value in rows:
                 writer.writerow([f"{scan_rate:g}", f"{value:.10g}", formula])
