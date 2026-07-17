@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python electrochemical_toolbox_single_window.py
+python electrochemical_toolbox.py
 pause
