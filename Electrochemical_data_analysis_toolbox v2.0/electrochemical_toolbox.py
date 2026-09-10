@@ -16,9 +16,10 @@ from durability_plot_gui import DurabilityPlotApp
 from eis_plot_gui import EISPlotApp
 from lsv_plot_gui import LSVPlotApp
 from ocv_plot_gui import OCVPlotApp
+from processing_gui import DataProcessingPage
 
 
-APP_TITLE = "Electrochemical data analysis toolbox"
+APP_TITLE = "Electrochemical data analysis toolbox v2.0"
 
 BG = "#f5f6f8"
 PANEL = "#ffffff"
@@ -135,7 +136,7 @@ TOOLS = [
     ),
     ToolDefinition(
         title="Durability",
-        subtitle="Plot CP or multi-current-step potential over time",
+        subtitle="Plot CP potential or chronoamperometry current over time",
         page_factory=DurabilityPlotApp,
     ),
     ToolDefinition(
@@ -147,6 +148,11 @@ TOOLS = [
         title="Reference electrode potential",
         subtitle="Find ref electrode potential from CV scan",
         page_factory=CVPlotApp,
+    ),
+    ToolDefinition(
+        title="Data processor",
+        subtitle="Create Origin-ready CSVs from files or a complete sample folder",
+        page_factory=DataProcessingPage,
     ),
     ToolDefinition(
         title="Folder batch plotter",
@@ -209,30 +215,62 @@ class ElectrochemicalToolbox(tk.Tk):
         button_grid = ttk.Frame(self.home_page, style="Panel.TFrame")
         button_grid.grid(row=2, column=0, sticky="nsew")
         button_grid.columnconfigure((0, 1, 2), weight=1, uniform="tool")
-        button_grid.rowconfigure((0, 1, 2), weight=1, uniform="tool")
+        button_grid.rowconfigure((0, 1, 2, 3), weight=1, uniform="tool")
 
         for index, tool in enumerate(TOOLS):
-            button = tk.Button(
+            card = tk.Frame(
                 button_grid,
-                text=f"{tool.title}\n{tool.subtitle}",
-                command=lambda selected=tool: self.show_tool(selected),
-                anchor="w",
-                justify="left",
-                padx=22,
-                pady=18,
                 bd=0,
                 relief="flat",
                 bg="#f9fafb",
-                fg=TEXT,
-                activebackground="#eef4ff",
-                activeforeground=TEXT,
                 highlightthickness=1,
                 highlightbackground=BORDER,
+                takefocus=True,
+                cursor="hand2",
+            )
+            card.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
+            card.columnconfigure(0, weight=1)
+
+            title = tk.Label(
+                card,
+                text=tool.title,
+                anchor="w",
+                justify="left",
+                bg="#f9fafb",
+                fg=TEXT,
                 font=("Segoe UI", 15, "bold"),
                 cursor="hand2",
-                wraplength=300,
             )
-            button.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
+            title.grid(row=0, column=0, sticky="ew", padx=22, pady=(18, 3))
+
+            subtitle = tk.Label(
+                card,
+                text=tool.subtitle,
+                anchor="nw",
+                justify="left",
+                bg="#f9fafb",
+                fg=MUTED,
+                font=("Segoe UI", 10),
+                wraplength=300,
+                cursor="hand2",
+            )
+            subtitle.grid(row=1, column=0, sticky="nsew", padx=22, pady=(0, 18))
+
+            widgets = (card, title, subtitle)
+
+            def open_tool(_event=None, selected=tool) -> None:
+                self.show_tool(selected)
+
+            def set_card_color(_event=None, color="#eef4ff", items=widgets) -> None:
+                for widget in items:
+                    widget.configure(bg=color)
+
+            for widget in widgets:
+                widget.bind("<Button-1>", open_tool)
+                widget.bind("<Enter>", set_card_color)
+                widget.bind("<Leave>", lambda event, items=widgets: set_card_color(event, "#f9fafb", items))
+            card.bind("<Return>", open_tool)
+            card.bind("<space>", open_tool)
 
         footer = ttk.Frame(self.home_page, style="Panel.TFrame")
         footer.grid(row=3, column=0, sticky="ew", pady=(22, 0))

@@ -8,9 +8,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 
-DATA_HEADER = ("Time/sec", "Potential/V")
+POTENTIAL_DATA_HEADER = ("Time/sec", "Potential/V")
+CURRENT_DATA_HEADER = ("Time/sec", "Current/A")
 MODE_MULTI_CURRENT = "Multi-Current Steps"
 MODE_CHRONOPOTENTIOMETRY = "Chronopotentiometry"
+MODE_AMPEROMETRIC = "Amperometric i-t Curve"
 METADATA_KEYS = {
     "i1 (A)": "current_a",
     "T1 (s)": "duration_s",
@@ -22,6 +24,8 @@ METADATA_KEYS = {
     "Data Storage Interval (s)": "sample_interval_s",
     "Cycle": "cycle",
     "Segment": "segment",
+    "Init E (V)": "applied_potential_v",
+    "Run Time (sec)": "duration_s",
 }
 
 
@@ -35,6 +39,7 @@ class DurabilityMetadata:
     sample_interval_s: float | None = None
     cycle: float | None = None
     segment: float | None = None
+    applied_potential_v: float | None = None
 
 
 @dataclass(frozen=True)
@@ -42,7 +47,21 @@ class DurabilityData:
     metadata: DurabilityMetadata
     source: Path
     times_sec: list[float]
-    potentials_v: list[float]
+    values: list[float]
+    value_kind: str
+
+    @property
+    def potentials_v(self) -> list[float]:
+        """Potential values for CP files (kept as a compatibility accessor)."""
+        return self.values if self.value_kind == "potential" else []
+
+    @property
+    def currents_a(self) -> list[float]:
+        return self.values if self.value_kind == "current" else []
+
+    @property
+    def is_amperometric(self) -> bool:
+        return self.value_kind == "current"
 
     @property
     def point_count(self) -> int:
@@ -58,15 +77,15 @@ class DurabilityData:
 
     @property
     def min_potential(self) -> float:
-        return min(self.potentials_v)
+        return min(self.values)
 
     @property
     def max_potential(self) -> float:
-        return max(self.potentials_v)
+        return max(self.values)
 
     @property
     def final_potential(self) -> float:
-        return self.potentials_v[-1]
+        return self.values[-1]
 
     @property
     def display_current_a(self) -> float | None:
@@ -83,7 +102,7 @@ def parse_metadata(lines: list[str]) -> DurabilityMetadata:
 
     for line in lines:
         stripped = line.strip()
-        if stripped in {MODE_MULTI_CURRENT, MODE_CHRONOPOTENTIOMETRY}:
+        if stripped in {MODE_MULTI_CURRENT, MODE_CHRONOPOTENTIOMETRY, MODE_AMPEROMETRIC}:
             mode = stripped
             continue
         if "=" not in stripped:
@@ -104,6 +123,7 @@ def parse_metadata(lines: list[str]) -> DurabilityMetadata:
         sample_interval_s=values.get("sample_interval_s"),
         cycle=values.get("cycle"),
         segment=values.get("segment"),
+        applied_potential_v=values.get("applied_potential_v"),
     )
 
 
@@ -112,23 +132,30 @@ def read_durability_data(path: str | Path) -> DurabilityData:
     lines = source.read_text(encoding="utf-8-sig", errors="replace").splitlines()
 
     data_start = None
+    value_kind = None
     for index, line in enumerate(lines):
         columns = [value.strip() for value in line.split(",")]
-        if len(columns) >= 2 and columns[0] == DATA_HEADER[0] and columns[1] == DATA_HEADER[1]:
-            data_start = index + 1
-            break
+        if len(columns) >= 2:
+            header = (columns[0], columns[1])
+            if header == POTENTIAL_DATA_HEADER:
+                data_start, value_kind = index + 1, "potential"
+                break
+            if header == CURRENT_DATA_HEADER:
+                data_start, value_kind = index + 1, "current"
+                break
 
     if data_start is None:
-        raise ValueError(f"Could not find durability data header: {', '.join(DATA_HEADER)}")
+        expected = " or ".join(", ".join(header) for header in (POTENTIAL_DATA_HEADER, CURRENT_DATA_HEADER))
+        raise ValueError(f"Could not find a supported durability data header: {expected}")
 
     times_sec: list[float] = []
-    potentials_v: list[float] = []
+    values: list[float] = []
     for row in csv.reader(lines[data_start:], skipinitialspace=True):
         if len(row) < 2 or not row[0].strip():
             continue
         try:
             times_sec.append(float(row[0]))
-            potentials_v.append(float(row[1]))
+            values.append(float(row[1]))
         except ValueError:
             if times_sec:
                 break
@@ -141,7 +168,8 @@ def read_durability_data(path: str | Path) -> DurabilityData:
         metadata=parse_metadata(lines[:data_start]),
         source=source,
         times_sec=times_sec,
-        potentials_v=potentials_v,
+        values=values,
+        value_kind=value_kind,
     )
 
 
@@ -156,6 +184,8 @@ def summarize_durability_data(data: DurabilityData) -> str:
         lines.append(f"Time: {metadata.duration_s:g} s")
     if metadata.sample_interval_s is not None:
         lines.append(f"Sample interval: {metadata.sample_interval_s:g} s")
+    if metadata.applied_potential_v is not None:
+        lines.append(f"Applied potential: {metadata.applied_potential_v:g} V")
     if metadata.cathodic_current_a is not None:
         lines.append(f"Cathodic current: {metadata.cathodic_current_a:g} A")
     if metadata.cathodic_time_s is not None:
@@ -168,8 +198,16 @@ def summarize_durability_data(data: DurabilityData) -> str:
             f"File: {data.source.name}",
             f"Points: {data.point_count}",
             f"Measured time: {data.min_time:.6g} to {data.max_time:.6g} s",
-            f"Potential: {data.min_potential:.6g} to {data.max_potential:.6g} V",
-            f"Final potential: {data.final_potential:.6g} V",
+            (
+                f"Current: {min(data.values):.6g} to {max(data.values):.6g} A"
+                if data.is_amperometric
+                else f"Potential: {data.min_potential:.6g} to {data.max_potential:.6g} V"
+            ),
+            (
+                f"Final current: {data.values[-1]:.6g} A"
+                if data.is_amperometric
+                else f"Final potential: {data.final_potential:.6g} V"
+            ),
         ]
     )
     return "\n".join(lines)
@@ -179,9 +217,9 @@ def plot_durability(input_path: Path, output_path: Path | None = None, show: boo
     data = read_durability_data(input_path)
 
     fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-    ax.plot(data.times_sec, data.potentials_v, linewidth=1.5)
+    ax.plot(data.times_sec, data.values, linewidth=1.5)
     ax.set_xlabel("Time / s")
-    ax.set_ylabel("Potential / V")
+    ax.set_ylabel("Current / A" if data.is_amperometric else "Potential / V")
     ax.set_title(input_path.stem)
     ax.grid(True, alpha=0.3)
 

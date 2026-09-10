@@ -70,7 +70,7 @@ class DurabilityPlotApp(ttk.Frame):
         ttk.Button(sidebar, text="Return", command=self.on_return).grid(row=0, column=1, sticky="e", padx=(12, 0))
         ttk.Label(
             sidebar,
-            text="Plots potential over time from multi-current step or chronopotentiometry files.",
+            text="Plots CP potential or chronoamperometry current over time.",
             style="Muted.TLabel",
             wraplength=280,
         ).grid(row=1, column=0, sticky="w", pady=(2, 16))
@@ -249,11 +249,12 @@ class DurabilityPlotApp(ttk.Frame):
         with output.open("w", encoding="utf-8", newline="") as export:
             writer = csv.writer(export)
             writer.writerow(["Mode", self.data.metadata.mode or ""])
-            writer.writerow(["Current (A)", self.format_optional_value(self.data.display_current_a)])
+            writer.writerow(["Applied current (A)", self.format_optional_value(self.data.display_current_a)])
+            writer.writerow(["Applied potential (V)", self.format_optional_value(self.data.metadata.applied_potential_v)])
             writer.writerow(["Time (s)", "" if self.data.metadata.duration_s is None else f"{self.data.metadata.duration_s:g}"])
             writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
             writer.writerow(["Working area (cm^2)", self.format_optional_value(working_area)])
-            writer.writerow(["Current density (mA/cm^2)", self.format_optional_value(self.get_current_density(working_area))])
+            writer.writerow(["Applied current density (mA/cm^2)", self.format_optional_value(self.get_current_density(working_area))])
             if ir_compensation is None:
                 writer.writerow(["Solution resistance (ohm)", "", "Compensation level (%)", ""])
             else:
@@ -262,8 +263,12 @@ class DurabilityPlotApp(ttk.Frame):
                     ["Solution resistance (ohm)", f"{resistance:g}", "Compensation level (%)", f"{compensation_fraction * 100:g}"]
                 )
             writer.writerow([])
-            writer.writerow(["Time (sec)", "Original Potential (V)", self.get_potential_axis_label()])
-            writer.writerows(zip(self.data.times_sec, self.data.potentials_v, adjusted_potentials))
+            if self.data.is_amperometric:
+                output_label = "Current density (mA/cm^2)" if working_area is not None else "Current (A)"
+                writer.writerow(["Time (sec)", "Original Current (A)", output_label])
+            else:
+                writer.writerow(["Time (sec)", "Original Potential (V)", self.get_potential_axis_label()])
+            writer.writerows(zip(self.data.times_sec, self.data.values, adjusted_potentials))
         self.status.set(f"Exported data to {output.name}")
 
     def refresh_summary(self) -> None:
@@ -282,7 +287,10 @@ class DurabilityPlotApp(ttk.Frame):
             self.current_density_text.set(f"j = {current_density:g} mA/cm^2")
             lines.extend(["", f"Current density: {current_density:g} mA/cm^2"])
         else:
-            self.current_density_text.set("")
+            if self.data.is_amperometric and working_area is not None:
+                self.current_density_text.set("Plotting mA/cm^2")
+            else:
+                self.current_density_text.set("")
         self.summary.set("\n".join(lines))
 
     def on_transform_change(self, _event: tk.Event) -> None:
@@ -367,6 +375,11 @@ class DurabilityPlotApp(ttk.Frame):
         if self.data is None:
             return []
 
+        if self.data.is_amperometric:
+            if working_area := self._valid_working_area_or_none():
+                return [current * 1000 / working_area for current in self.data.currents_a]
+            return self.data.currents_a
+
         adjusted = self.data.potentials_v
         if rhe_offset is not None:
             adjusted = [potential + rhe_offset for potential in adjusted]
@@ -375,6 +388,17 @@ class DurabilityPlotApp(ttk.Frame):
             correction = self.data.display_current_a * resistance * compensation_fraction
             adjusted = [potential - correction for potential in adjusted]
         return adjusted
+
+    def _valid_working_area_or_none(self) -> float | None:
+        try:
+            return self.get_working_area()
+        except ValueError:
+            return None
+
+    def get_value_axis_label(self) -> str:
+        if self.data is not None and self.data.is_amperometric:
+            return "Current density / mA cm$^{-2}$" if self._valid_working_area_or_none() is not None else "Current / A"
+        return self.get_potential_axis_label()
 
     def get_potential_axis_label(self) -> str:
         try:
@@ -437,7 +461,7 @@ class DurabilityPlotApp(ttk.Frame):
         adjusted_potentials = self.get_adjusted_potentials(rhe_offset, ir_compensation)
         self.ax.plot(self.data.times_sec, adjusted_potentials, color=ACCENT, linewidth=1.5)
         self.ax.set_xlabel("Time / s")
-        self.ax.set_ylabel(self.get_potential_axis_label())
+        self.ax.set_ylabel(self.get_value_axis_label())
         self.ax.set_title(self.data.source.stem)
         if y_range is not None:
             self.ax.set_ylim(*y_range)
