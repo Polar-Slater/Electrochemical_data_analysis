@@ -16,6 +16,7 @@ from durability_plot_gui import DurabilityPlotApp
 from eis_plot_gui import EISPlotApp
 from lsv_plot_gui import LSVPlotApp
 from ocv_plot_gui import OCVPlotApp
+from kramers_kronig_gui import KKPlotApp
 
 
 APP_TITLE = "Electrochemical data analysis toolbox"
@@ -129,6 +130,11 @@ TOOLS = [
         page_factory=EISPlotApp,
     ),
     ToolDefinition(
+        title="Kramers–Kronig Validator",
+        subtitle="Check EIS spectra for linear K–K consistency",
+        page_factory=KKPlotApp,
+    ),
+    ToolDefinition(
         title="ECSA identifier",
         subtitle="C_dl from CV scan",
         page_factory=CVMultiPlotApp,
@@ -209,30 +215,62 @@ class ElectrochemicalToolbox(tk.Tk):
         button_grid = ttk.Frame(self.home_page, style="Panel.TFrame")
         button_grid.grid(row=2, column=0, sticky="nsew")
         button_grid.columnconfigure((0, 1, 2), weight=1, uniform="tool")
-        button_grid.rowconfigure((0, 1, 2), weight=1, uniform="tool")
+        row_count = (len(TOOLS) + 2) // 3
+        button_grid.rowconfigure(tuple(range(row_count)), weight=1, uniform="tool")
 
         for index, tool in enumerate(TOOLS):
-            button = tk.Button(
+            card = tk.Frame(
                 button_grid,
-                text=f"{tool.title}\n{tool.subtitle}",
-                command=lambda selected=tool: self.show_tool(selected),
-                anchor="w",
-                justify="left",
-                padx=22,
-                pady=18,
-                bd=0,
-                relief="flat",
                 bg="#f9fafb",
-                fg=TEXT,
-                activebackground="#eef4ff",
-                activeforeground=TEXT,
                 highlightthickness=1,
                 highlightbackground=BORDER,
-                font=("Segoe UI", 15, "bold"),
+                highlightcolor="#9db8e5",
                 cursor="hand2",
-                wraplength=300,
+                takefocus=True,
             )
-            button.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
+            card.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
+            card.columnconfigure(0, weight=1)
+            card.rowconfigure(0, weight=1)
+            card.rowconfigure(3, weight=1)
+
+            title_label = tk.Label(
+                card,
+                text=tool.title,
+                anchor="w",
+                justify="left",
+                bg="#f9fafb",
+                fg=TEXT,
+                font=("Segoe UI", 15, "bold"),
+                wraplength=300,
+                cursor="hand2",
+            )
+            title_label.grid(row=1, column=0, sticky="ew", padx=22, pady=(18, 2))
+            subtitle_label = tk.Label(
+                card,
+                text=tool.subtitle,
+                anchor="nw",
+                justify="left",
+                bg="#f9fafb",
+                fg=MUTED,
+                font=("Segoe UI", 9),
+                wraplength=300,
+                cursor="hand2",
+            )
+            subtitle_label.grid(row=2, column=0, sticky="new", padx=22, pady=(0, 18))
+
+            widgets = (card, title_label, subtitle_label)
+            for widget in widgets:
+                widget.bind("<Button-1>", lambda _event, selected=tool: self.show_tool(selected))
+                widget.bind(
+                    "<Enter>",
+                    lambda _event, items=widgets: [item.configure(bg="#eef4ff") for item in items],
+                )
+                widget.bind(
+                    "<Leave>",
+                    lambda _event, items=widgets: [item.configure(bg="#f9fafb") for item in items],
+                )
+            card.bind("<Return>", lambda _event, selected=tool: self.show_tool(selected))
+            card.bind("<space>", lambda _event, selected=tool: self.show_tool(selected))
 
         footer = ttk.Frame(self.home_page, style="Panel.TFrame")
         footer.grid(row=3, column=0, sticky="ew", pady=(22, 0))
