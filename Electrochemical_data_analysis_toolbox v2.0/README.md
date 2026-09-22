@@ -1,4 +1,7 @@
-# Electrochemical data analysis toolbox v2.0
+# Electrochemical data analysis toolbox
+
+The current version is displayed in `VERSION.txt`, and release history is
+maintained in `CHANGELOG.md`. Both must be updated whenever the project changes.
 
 Note: The code in this toolbox was generated with assistance from AI.
 

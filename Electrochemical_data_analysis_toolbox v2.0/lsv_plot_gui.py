@@ -10,6 +10,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from plot_lsv_txt import LSVData, read_lsv_data, summarize_lsv_data
+from scrollable_sidebar import ScrollableSidebar
 
 
 BG = "#f7f8fa"
@@ -44,6 +45,8 @@ class LSVPlotApp(ttk.Frame):
         self.compensation_level = tk.StringVar(value="")
         self.equilibrium_potential = tk.StringVar(value="1.23")
         self.plot_mode = tk.StringVar(value="LSV")
+        self.tafel_min = tk.StringVar()
+        self.tafel_max = tk.StringVar()
 
         self._configure_styles()
         self._build_layout()
@@ -71,8 +74,9 @@ class LSVPlotApp(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
-        sidebar = ttk.Frame(self, style="Panel.TFrame", padding=18)
-        sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar = ScrollableSidebar(self)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar = self.sidebar.content
         sidebar.rowconfigure(3, weight=1)
         sidebar.rowconfigure(9, weight=1)
 
@@ -164,6 +168,17 @@ class LSVPlotApp(ttk.Frame):
         self.eq_entry.grid(row=3, column=0, sticky="ew")
         self.eq_entry.bind("<KeyRelease>", self.on_equilibrium_potential_change)
         ttk.Label(ref_frame, text="V vs. RHE", style="Panel.TLabel").grid(row=3, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(ref_frame, text="Tafel fit overpotential range / V", style="Panel.TLabel").grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(10, 2))
+        for row, label, variable in ((5, "Minimum", self.tafel_min), (6, "Maximum", self.tafel_max)):
+            ttk.Label(ref_frame, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w")
+            entry = ttk.Entry(ref_frame, textvariable=variable, width=12)
+            entry.grid(row=row, column=1, sticky="ew")
+            entry.bind("<Return>", self.on_equilibrium_potential_change)
+        ttk.Button(ref_frame, text="Apply fit range", command=self.show_tafel_plot).grid(
+            row=7, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Label(ref_frame, text="Blank bounds include the full range.", style="Muted.TLabel").grid(
+            row=8, column=0, columnspan=2, sticky="w")
 
         area_frame = ttk.LabelFrame(sidebar, text="Working area: ", padding=10)
         area_frame.grid(row=7, column=0, sticky="ew", pady=(0, 12))
@@ -217,6 +232,8 @@ class LSVPlotApp(ttk.Frame):
             row=10, column=0, sticky="ew"
         )
 
+        self.sidebar.enable_mousewheel()
+
         plot_area = ttk.Frame(self, padding=16)
         plot_area.grid(row=0, column=1, sticky="nsew")
         plot_area.columnconfigure(0, weight=1)
@@ -267,8 +284,18 @@ class LSVPlotApp(ttk.Frame):
 
     def _prepare_tafel_axis(self) -> None:
         self.figure.clear()
-        self.ax_original = self.figure.add_subplot(111)
-        self.ax_adjusted = None
+        layout = self.figure.add_gridspec(2, 1, height_ratios=(1, 2))
+        self.ax_adjusted = self.figure.add_subplot(layout[0])
+        self.ax_original = self.figure.add_subplot(layout[1])
+        self.ax_adjusted.set(title="Polarization curve", xlabel="Overpotential / V",
+                             ylabel="j / mA cm$^{-2}$")
+
+    def get_tafel_bounds(self):
+        lower = float(self.tafel_min.get()) if self.tafel_min.get().strip() else -math.inf
+        upper = float(self.tafel_max.get()) if self.tafel_max.get().strip() else math.inf
+        if math.isnan(lower) or math.isnan(upper) or lower >= upper:
+            raise ValueError("Tafel minimum must be less than maximum.")
+        return lower, upper
 
     def open_files(self) -> None:
         selected = filedialog.askopenfilenames(
@@ -533,6 +560,11 @@ class LSVPlotApp(ttk.Frame):
                 self.status.set(f"Plotted {loaded} file(s).")
 
     def plot_tafel_files(self) -> None:
+        try:
+            lower, upper = self.get_tafel_bounds()
+        except ValueError as exc:
+            self.status.set(f"Invalid Tafel range: {exc}")
+            return
         self._prepare_tafel_axis()
         loaded = 0
         failures: list[str] = []
@@ -561,17 +593,29 @@ class LSVPlotApp(ttk.Frame):
                 tafel_points = self.tafel_points(data, adjusted_potentials, working_area, equilibrium_potential)
 
             if tafel_points:
+                eta = [potential - equilibrium_potential for potential in adjusted_potentials]
+                density = [current * 1000 / working_area for current in data.currents]
+                line, = self.ax_adjusted.plot(eta, density, linewidth=1.5, label=path.stem)
+                color = line.get_color()
                 log_current = [point[0] for point in tafel_points]
                 overpotential = [point[1] for point in tafel_points]
                 label = path.stem
-                fit = self.linear_regression(tafel_points)
+                selected = [(x, y) for x, y in tafel_points if lower <= y <= upper]
+                fit = self.linear_regression(selected)
                 if fit is not None:
                     slope, intercept = fit
                     label = f"{path.stem} ({slope * 1000:.4g} mV/dec)"
-                    fit_x = [min(log_current), max(log_current)]
+                    fit_x = [min(x for x, y in selected), max(x for x, y in selected)]
                     fit_y = [slope * value + intercept for value in fit_x]
-                    self.ax_original.plot(fit_x, fit_y, linestyle="--", linewidth=1.2)
-                self.ax_original.plot(log_current, overpotential, marker="o", linewidth=1.5, label=label)
+                    self.ax_original.plot(fit_x, fit_y, color=color, linestyle="--", linewidth=2.4)
+                    self.ax_adjusted.axvspan(min(y for x, y in selected), max(y for x, y in selected),
+                                             color=color, alpha=0.15)
+                    self.ax_original.scatter([x for x, y in selected], [y for x, y in selected],
+                                             color=color, s=18, zorder=3)
+                    summaries.append(f"{path.name}: fit uses {len(selected)} points; slope = {slope * 1000:.6g} mV/dec")
+                else:
+                    summaries.append(f"{path.name}: no fit — select at least two distinct log-current values.")
+                self.ax_original.plot(log_current, overpotential, color=color, linewidth=1.5, label=label)
                 loaded += 1
 
             summaries.append(f"{path.name}\n{summarize_lsv_data(data)}")
@@ -580,8 +624,10 @@ class LSVPlotApp(ttk.Frame):
         self.ax_original.set_ylabel("Overpotential / V")
         self.ax_original.set_title("Tafel slope")
         self.ax_original.grid(self.show_grid.get(), alpha=0.3)
+        self.ax_adjusted.grid(self.show_grid.get(), alpha=0.3)
         if self.legend_enabled.get() and loaded:
             self.ax_original.legend(loc="best", fontsize=8)
+            self.ax_adjusted.legend(loc="best", fontsize=8)
 
         self.figure.tight_layout()
         self.canvas.draw_idle()

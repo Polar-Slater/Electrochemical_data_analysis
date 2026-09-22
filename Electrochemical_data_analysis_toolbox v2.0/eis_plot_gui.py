@@ -9,6 +9,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from plot_eis_txt import EISData, read_eis_data, summarize_eis_data, write_processed_eis_data
+from scrollable_sidebar import ScrollableSidebar
 
 
 BG = "#f6f7f9"
@@ -62,8 +63,9 @@ class EISPlotApp(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
-        sidebar = ttk.Frame(self, style="Panel.TFrame", padding=18)
-        sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar = ScrollableSidebar(self)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar = self.sidebar.content
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(5, weight=1)
 
@@ -143,6 +145,8 @@ class EISPlotApp(ttk.Frame):
         ttk.Label(sidebar, textvariable=self.status, style="Muted.TLabel", wraplength=260).grid(
             row=6, column=0, sticky="ew", pady=(14, 0)
         )
+
+        self.sidebar.enable_mousewheel()
 
         plot_area = ttk.Frame(self, padding=(14, 14, 14, 10))
         plot_area.grid(row=0, column=1, sticky="nsew")

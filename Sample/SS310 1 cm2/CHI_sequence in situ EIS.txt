@@ -1,0 +1,168 @@
+folder:d:\Desktop\Sample\SS310 1 cm2
+
+# 1. i-t - Amperometric i-t Curve
+tech:i-t
+ei:0.686
+si:0.1
+st:120
+qt:2
+sens:1e-2
+auxoff
+run
+save:SS310_it 0p686 V
+tsave:SS310_it 0p686 V
+delay:30
+
+# 2. IMP - AC Impedance
+tech:imp
+ei:0.686
+fl:1
+fh:100000
+amp:0.005
+qt:2
+impautosens
+impsf
+ibias:2
+cl1:1
+cl2:1
+cl3:1
+cl4:1
+cl5:1
+run
+save:SS310_EIS 0p686 V
+tsave:SS310_EIS 0p686 V
+delay:30
+
+# 3. i-t - Amperometric i-t Curve
+tech:i-t
+ei:0.736
+si:0.1
+st:120
+qt:2
+sens:1e-2
+auxoff
+run
+save:SS310_it 0p736 V
+tsave:SS310_it 0p736 V
+delay:30
+
+# 4. IMP - AC Impedance
+tech:imp
+ei:0.736
+fl:1
+fh:100000
+amp:0.005
+qt:2
+impautosens
+impsf
+ibias:2
+cl1:1
+cl2:1
+cl3:1
+cl4:1
+cl5:1
+run
+save:SS310_EIS 0p736 V
+tsave:SS310_EIS 0p736 V
+delay:30
+
+# 5. i-t - Amperometric i-t Curve
+tech:i-t
+ei:0.786
+si:0.1
+st:120
+qt:2
+sens:1e-2
+auxoff
+run
+save:SS310_it 0p786 V
+tsave:SS310_it 0p786 V
+delay:30
+
+# 6. IMP - AC Impedance
+tech:imp
+ei:0.786
+fl:1
+fh:100000
+amp:0.005
+qt:2
+impautosens
+impsf
+ibias:2
+cl1:1
+cl2:1
+cl3:1
+cl4:1
+cl5:1
+run
+save:SS310_EIS 0p786 V
+tsave:SS310_EIS 0p786 V
+delay:30
+
+# 7. i-t - Amperometric i-t Curve
+tech:i-t
+ei:0.836
+si:0.1
+st:120
+qt:2
+sens:1e-2
+auxoff
+run
+save:SS310_it 0p836 V
+tsave:SS310_it 0p836 V
+delay:30
+
+# 8. IMP - AC Impedance
+tech:imp
+ei:0.836
+fl:1
+fh:100000
+amp:0.005
+qt:2
+impautosens
+impsf
+ibias:2
+cl1:1
+cl2:1
+cl3:1
+cl4:1
+cl5:1
+run
+save:SS310_EIS 0p836 V
+tsave:SS310_EIS 0p836 V
+delay:30
+
+# 9. i-t - Amperometric i-t Curve
+tech:i-t
+ei:0.886
+si:0.1
+st:120
+qt:2
+sens:1e-2
+auxoff
+run
+save:SS310_it 0p886 V
+tsave:SS310_it 0p886 V
+delay:30
+
+# 10. IMP - AC Impedance
+tech:imp
+ei:0.886
+fl:1
+fh:100000
+amp:0.005
+qt:2
+impautosens
+impsf
+ibias:2
+cl1:1
+cl2:1
+cl3:1
+cl4:1
+cl5:1
+run
+save:SS310_EIS 0p886 V
+tsave:SS310_EIS 0p886 V
+delay:30
+
+end

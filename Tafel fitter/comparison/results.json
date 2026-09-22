@@ -1,0 +1,220 @@
+{
+  "provenance": {
+    "source": "d:\\Desktop\\Sample\\Ni foil 2 cm2\\Processed\\Ni_foil_LSV 2.3 ohm.csv",
+    "sha256": "b944a2c1664f5793344b4532ff9c636b591551b56450f72e45381a58a74c2c89",
+    "equilibrium_assumed_v": 1.23,
+    "source_metadata": {
+      "reference": 0.929,
+      "area": 2.0,
+      "resistance": 2.3,
+      "compensation": 90.0
+    },
+    "comparison": "Shared positive-current, positive-overpotential data. No manual potential bounds.",
+    "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+    "numpy": "2.5.0",
+    "scipy": "1.18.0",
+    "github_source_verified": "Local files match GitHub Windows v1.51 ZIP after CRLF normalization, checked 2026-09-18",
+    "legacy_compatibility": "Executed original numerical function bodies in Python 3; cast bin count and two slice indices to int for modern SciPy/NumPy. Original window logic and binning bugs retained.",
+    "original_source_sha256": {
+      "Tfit_beta1p51.py": "f42278ef42ac315b0c587074be411448816ebc4b19aed9b9aaffe6cac9926991",
+      "Tafel_plot_user_v1p1.py": "db16c8514c194c2c1ab37bde14564c6b9ff2b1a3a8a990969ca16278a94bcc95",
+      "common.py": "583ec0e26235a00d58d0cdc54aff7ca70b9c000c64366bf979d5e9aecf9b147f"
+    }
+  },
+  "results": {
+    "90": {
+      "preparation": {
+        "area": 2.0,
+        "reference": 0.929,
+        "equilibrium": 1.23,
+        "resistance": 2.3,
+        "compensation": 90,
+        "branch": "Anodic",
+        "eta_min": null,
+        "eta_max": null,
+        "min_density": 0.0
+      },
+      "retained_points": 464,
+      "modern": {
+        "slope_mv": 60.136888105129984,
+        "i0_a": 2.7079237392208604e-09,
+        "j0_ma_cm2": 1.3539618696104301e-06,
+        "start_v": 0.3613261299999999,
+        "actual_end_v": 0.3767514300000001,
+        "reported_end_v": 0.3767514300000001,
+        "points": 21,
+        "width_mv": 16.0,
+        "actual_width_mv": 15.425300000000197,
+        "tafel_r2": 0.9996846246538443,
+        "lsv_r2": 0.9960194270544479,
+        "residual": 0.14318821217266842,
+        "threshold": 0.996,
+        "minima": 3992,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff disabled; the selected potential range defines the candidate kinetic region.",
+          "Winning slope bin spans 34 distinct window width(s); 3992 residual minima retained."
+        ]
+      },
+      "github_legacy": {
+        "slope_mv": 89.89905251630057,
+        "i0_a": 3.6654053845613195e-07,
+        "j0_ma_cm2": 0.00018327026922806597,
+        "start_v": 0.38666318,
+        "reported_end_v": 0.42866318,
+        "actual_end_v": 0.43717360000000016,
+        "points": 90,
+        "width_mv": 41.99999999999997,
+        "actual_width_mv": 50.51042000000017,
+        "tafel_r2": 0.9961345739941216,
+        "lsv_r2": 0.9892404960578953,
+        "residual": 0.3713835462611774,
+        "threshold": 0.9890000000000001,
+        "minima": 3874,
+        "cutoff_last_v": 0.43717360000000016,
+        "tied_selected_rows": 40,
+        "distinct_selected_fits": 1,
+        "direct_original_engine_verified": true
+      },
+      "modern_49mv_with_cutoff": {
+        "slope_mv": 60.136888105129984,
+        "i0_a": 2.7079237392208604e-09,
+        "j0_ma_cm2": 1.3539618696104301e-06,
+        "start_v": 0.3613261299999999,
+        "actual_end_v": 0.3767514300000001,
+        "reported_end_v": 0.3767514300000001,
+        "points": 21,
+        "width_mv": 16.0,
+        "actual_width_mv": 15.425300000000197,
+        "tafel_r2": 0.9996846246538443,
+        "lsv_r2": 0.9960194270544479,
+        "residual": 0.14318821217266842,
+        "threshold": 0.996,
+        "minima": 3883,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff enabled: fitting only points below |eta| = 0.437908 V.",
+          "Winning slope bin spans 33 distinct window width(s); 3883 residual minima retained."
+        ]
+      },
+      "modern_49mv_no_cutoff": {
+        "slope_mv": 60.136888105129984,
+        "i0_a": 2.7079237392208604e-09,
+        "j0_ma_cm2": 1.3539618696104301e-06,
+        "start_v": 0.3613261299999999,
+        "actual_end_v": 0.3767514300000001,
+        "reported_end_v": 0.3767514300000001,
+        "points": 21,
+        "width_mv": 16.0,
+        "actual_width_mv": 15.425300000000197,
+        "tafel_r2": 0.9996846246538443,
+        "lsv_r2": 0.9960194270544479,
+        "residual": 0.14318821217266842,
+        "threshold": 0.996,
+        "minima": 3901,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff disabled; the selected potential range defines the candidate kinetic region.",
+          "Winning slope bin spans 33 distinct window width(s); 3901 residual minima retained."
+        ]
+      }
+    },
+    "0": {
+      "preparation": {
+        "area": 2.0,
+        "reference": 0.929,
+        "equilibrium": 1.23,
+        "resistance": 2.3,
+        "compensation": 0,
+        "branch": "Anodic",
+        "eta_min": null,
+        "eta_max": null,
+        "min_density": 0.0
+      },
+      "retained_points": 464,
+      "modern": {
+        "slope_mv": 60.829528035898576,
+        "i0_a": 2.6180943760006467e-09,
+        "j0_ma_cm2": 1.3090471880003233e-06,
+        "start_v": 0.3490000000000002,
+        "actual_end_v": 0.3600000000000001,
+        "reported_end_v": 0.3600000000000001,
+        "points": 12,
+        "width_mv": 11.0,
+        "actual_width_mv": 10.999999999999899,
+        "tafel_r2": 0.9996877575676681,
+        "lsv_r2": 0.9982007362499228,
+        "residual": 0.06687402217770476,
+        "threshold": 0.998,
+        "minima": 4070,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff disabled; the selected potential range defines the candidate kinetic region.",
+          "Winning slope bin spans 33 distinct window width(s); 4070 residual minima retained."
+        ]
+      },
+      "github_legacy": {
+        "slope_mv": 186.8637366755255,
+        "i0_a": 6.258601157436656e-05,
+        "j0_ma_cm2": 0.03129300578718328,
+        "start_v": 0.43400000000000016,
+        "reported_end_v": 0.47900000000000015,
+        "actual_end_v": 0.4890000000000001,
+        "points": 56,
+        "width_mv": 44.99999999999997,
+        "actual_width_mv": 54.999999999999936,
+        "tafel_r2": 0.9961237068144717,
+        "lsv_r2": 0.9992947242661093,
+        "residual": 0.2251521420411095,
+        "threshold": 0.9960000000000001,
+        "minima": 3965,
+        "cutoff_last_v": 0.4890000000000001,
+        "tied_selected_rows": 40,
+        "distinct_selected_fits": 1,
+        "direct_original_engine_verified": true
+      },
+      "modern_49mv_with_cutoff": {
+        "slope_mv": 60.829528035898576,
+        "i0_a": 2.6180943760006467e-09,
+        "j0_ma_cm2": 1.3090471880003233e-06,
+        "start_v": 0.3490000000000002,
+        "actual_end_v": 0.3600000000000001,
+        "reported_end_v": 0.3600000000000001,
+        "points": 12,
+        "width_mv": 11.0,
+        "actual_width_mv": 10.999999999999899,
+        "tafel_r2": 0.9996877575676681,
+        "lsv_r2": 0.9982007362499228,
+        "residual": 0.06687402217770476,
+        "threshold": 0.998,
+        "minima": 3968,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff enabled: fitting only points below |eta| = 0.4905 V.",
+          "Winning slope bin spans 32 distinct window width(s); 3968 residual minima retained."
+        ]
+      },
+      "modern_49mv_no_cutoff": {
+        "slope_mv": 60.829528035898576,
+        "i0_a": 2.6180943760006467e-09,
+        "j0_ma_cm2": 1.3090471880003233e-06,
+        "start_v": 0.3490000000000002,
+        "actual_end_v": 0.3600000000000001,
+        "reported_end_v": 0.3600000000000001,
+        "points": 12,
+        "width_mv": 11.0,
+        "actual_width_mv": 10.999999999999899,
+        "tafel_r2": 0.9996877575676681,
+        "lsv_r2": 0.9982007362499228,
+        "residual": 0.06687402217770476,
+        "threshold": 0.998,
+        "minima": 3973,
+        "notes": [
+          "Retained 464 of 800 points for the selected branch and range.",
+          "Derivative cutoff disabled; the selected potential range defines the candidate kinetic region.",
+          "Winning slope bin spans 32 distinct window width(s); 3973 residual minima retained."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,154 @@
+folder:d:\Desktop\Sample\SS310 1 cm2
+
+# 1. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.01
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 10 mV
+tsave:SS310_sheet CV 10 mV
+delay:10
+
+# 2. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.02
+cl:10
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 20 mV
+tsave:SS310_sheet CV 20 mV
+delay:10
+
+# 3. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.04
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 40 mV
+tsave:SS310_sheet CV 40 mV
+delay:10
+
+# 4. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.08
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 80 mV
+tsave:SS310_sheet CV 80 mV
+delay:10
+
+# 5. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.1
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 100 mV
+tsave:SS310_sheet CV 100 mV
+delay:10
+
+# 6. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.12
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 120 mV
+tsave:SS310_sheet CV 120 mV
+delay:10
+
+# 7. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.16
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 160 mV
+tsave:SS310_sheet CV 160 mV
+delay:10
+
+# 8. CV - Cyclic Voltammetry
+tech:cv
+ei:0.24
+eh:0.34
+el:0.24
+ef:0
+pn:p
+v:0.2
+cl:20
+si:0.001
+qt:2
+sens:1e-5
+efoff
+auxoff
+run
+save:SS310_sheet CV 200 mV
+tsave:SS310_sheet CV 200 mV
+
+end

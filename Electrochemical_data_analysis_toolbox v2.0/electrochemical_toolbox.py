@@ -19,14 +19,26 @@ from ocv_plot_gui import OCVPlotApp
 from processing_gui import DataProcessingPage
 
 
-APP_TITLE = "Electrochemical data analysis toolbox v2.0"
+BASE_DIR = Path(__file__).resolve().parent
+VERSION_FILE = BASE_DIR / "VERSION.txt"
+
+
+def read_app_version() -> str:
+    try:
+        version = VERSION_FILE.read_text(encoding="utf-8-sig").strip()
+    except OSError:
+        return "unknown"
+    return version or "unknown"
+
+
+APP_VERSION = read_app_version()
+APP_TITLE = f"Electrochemical data analysis toolbox v{APP_VERSION}"
 
 BG = "#f5f6f8"
 PANEL = "#ffffff"
 TEXT = "#17202a"
 MUTED = "#637083"
 BORDER = "#d8dee7"
-BASE_DIR = Path(__file__).resolve().parent
 DRTTOOLS_DIR = BASE_DIR / "DRTtools modified"
 DRTTOOLS_LAUNCHER = DRTTOOLS_DIR / "launch.py"
 FOLDER_BATCH_DIR = BASE_DIR / "Folder batch plotter"
@@ -166,6 +178,12 @@ TOOLS = [
     ),
 ]
 
+HOME_COLUMNS = (
+    ("Open circuit voltage", "LSV Plotter", "EIS Plotter", "ECSA identifier", "Durability"),
+    ("Data processor", "DRTtools", "Folder batch plotter"),
+    ("Reference electrode potential", "Experiment procedure"),
+)
+
 
 class ElectrochemicalToolbox(tk.Tk):
     def __init__(self) -> None:
@@ -215,9 +233,13 @@ class ElectrochemicalToolbox(tk.Tk):
         button_grid = ttk.Frame(self.home_page, style="Panel.TFrame")
         button_grid.grid(row=2, column=0, sticky="nsew")
         button_grid.columnconfigure((0, 1, 2), weight=1, uniform="tool")
-        button_grid.rowconfigure((0, 1, 2, 3), weight=1, uniform="tool")
+        button_grid.rowconfigure(tuple(range(max(map(len, HOME_COLUMNS)))), weight=1, uniform="tool")
 
-        for index, tool in enumerate(TOOLS):
+        tools_by_title = {tool.title: tool for tool in TOOLS}
+        positions = [(row, column, tools_by_title[name])
+                     for column, names in enumerate(HOME_COLUMNS)
+                     for row, name in enumerate(names)]
+        for row, column, tool in positions:
             card = tk.Frame(
                 button_grid,
                 bd=0,
@@ -228,7 +250,7 @@ class ElectrochemicalToolbox(tk.Tk):
                 takefocus=True,
                 cursor="hand2",
             )
-            card.grid(row=index // 3, column=index % 3, sticky="nsew", padx=10, pady=10)
+            card.grid(row=row, column=column, sticky="nsew", padx=10, pady=6)
             card.columnconfigure(0, weight=1)
 
             title = tk.Label(
@@ -239,9 +261,10 @@ class ElectrochemicalToolbox(tk.Tk):
                 bg="#f9fafb",
                 fg=TEXT,
                 font=("Segoe UI", 15, "bold"),
+                wraplength=300,
                 cursor="hand2",
             )
-            title.grid(row=0, column=0, sticky="ew", padx=22, pady=(18, 3))
+            title.grid(row=0, column=0, sticky="ew", padx=16, pady=(10, 3))
 
             subtitle = tk.Label(
                 card,
@@ -254,7 +277,7 @@ class ElectrochemicalToolbox(tk.Tk):
                 wraplength=300,
                 cursor="hand2",
             )
-            subtitle.grid(row=1, column=0, sticky="nsew", padx=22, pady=(0, 18))
+            subtitle.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 10))
 
             widgets = (card, title, subtitle)
 

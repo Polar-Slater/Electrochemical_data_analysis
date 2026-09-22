@@ -1,0 +1,25 @@
+{
+  "legacy_with_only_window_index_fixed": {
+    "slope_mv": 60.87604944975944,
+    "i0_a": 3.2143136099700784e-09,
+    "j0_ma_cm2": 1.6071568049850392e-06,
+    "start_v": 0.36213362000000004,
+    "reported_end_v": 0.37913362000000006,
+    "actual_end_v": 0.3782318600000001,
+    "points": 22,
+    "width_mv": 16.999999999999993,
+    "actual_width_mv": 16.09824000000004,
+    "tafel_r2": 0.9995761978208377,
+    "lsv_r2": 0.9961399270897345,
+    "residual": 0.1476723259323862,
+    "threshold": 0.9960000000000001,
+    "minima": 3882,
+    "cutoff_last_v": 0.43717360000000016,
+    "tied_selected_rows": 1,
+    "distinct_selected_fits": 1,
+    "direct_original_engine_verified": true
+  },
+  "modern_matched_controls_with_legacy_binning_slopes": [
+    60.42040635538997
+  ]
+}
