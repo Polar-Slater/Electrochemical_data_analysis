@@ -3,6 +3,32 @@
 All notable changes to the Electrochemical Data Analysis Toolbox are recorded
 here. Versions follow semantic versioning (`major.minor.patch`).
 
+## [2.3.1] - 2026-09-24
+
+### Changed
+
+- Matched the ZView converter to the plotting tools with a scrollable left
+  control panel, top Return button, green file-selection action, and a full-height
+  preview on the right. Added Clear and a compact scrollable file list.
+
+## [2.3.0] - 2026-09-24
+
+### Added
+
+- Added a selected-file ZView output preview showing up to 500 rows, with
+  shared validation between preview and export. Exports still contain all rows.
+- Added a target-folder picker for ZView conversion; leaving it blank saves
+  beside each source. Existing exports remain protected from replacement.
+
+## [2.2.0] - 2026-09-24
+
+### Added
+
+- Added an EIS to ZView tool for converting selected CHI EIS text files to
+  headerless, tab-separated Frequency (Hz), Z' (ohm), and Z'' (ohm) data.
+  Exports preserve impedance signs and row order and are saved beside each
+  source with the `_ZView.txt` suffix. Existing exports are skipped.
+
 ## [2.1.1] - 2026-09-22
 
 ### Changed

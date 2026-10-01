@@ -17,6 +17,7 @@ from eis_plot_gui import EISPlotApp
 from lsv_plot_gui import LSVPlotApp
 from ocv_plot_gui import OCVPlotApp
 from processing_gui import DataProcessingPage
+from zview_converter import ZViewConverterPage
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -127,6 +128,11 @@ class ExperimentProcedurePage(ttk.Frame):
 
 TOOLS = [
     ToolDefinition(
+        title="EIS to ZView",
+        subtitle="Convert EIS files to tab-separated ZView text files",
+        page_factory=ZViewConverterPage,
+    ),
+    ToolDefinition(
         title="Open circuit voltage",
         subtitle="Plot OCV potential over time",
         page_factory=OCVPlotApp,
@@ -180,7 +186,7 @@ TOOLS = [
 
 HOME_COLUMNS = (
     ("Open circuit voltage", "LSV Plotter", "EIS Plotter", "ECSA identifier", "Durability"),
-    ("Data processor", "DRTtools", "Folder batch plotter"),
+    ("Data processor", "DRTtools", "Folder batch plotter", "EIS to ZView"),
     ("Reference electrode potential", "Experiment procedure"),
 )
 
