@@ -1,0 +1,5 @@
+# Versions verified with this application's initial Windows environment.
+dearpygui==2.2
+pyimpspec==5.2.0
+requests==2.34.2
+cvxopt==1.3.3

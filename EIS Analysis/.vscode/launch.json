@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Open EIS Analysis",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/launch.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "subProcess": true
+    }
+  ]
+}
