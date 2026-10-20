@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from plot_eis_txt import EISData, read_eis_data, summarize_eis_data, write_processed_eis_data
 from scrollable_sidebar import ScrollableSidebar
@@ -158,6 +159,7 @@ class EISPlotApp(ttk.Frame):
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_area)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         toolbar = NavigationToolbar2Tk(self.canvas, plot_area, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, toolbar, self.redraw)
         toolbar.update()
         toolbar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
@@ -213,7 +215,7 @@ class EISPlotApp(ttk.Frame):
         if not filename:
             return
 
-        self.figure.savefig(filename, dpi=300, bbox_inches="tight")
+        self.plot_editor.save_figure(filename)
         self.status.set(f"Saved plot to {Path(filename).name}")
 
     def save_data(self) -> None:
@@ -288,7 +290,7 @@ class EISPlotApp(ttk.Frame):
             color=MUTED,
         )
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def _draw_nyquist(self, data: EISData) -> None:
         self._reset_figure()
@@ -317,7 +319,7 @@ class EISPlotApp(ttk.Frame):
             self.ax.set_aspect("equal", adjustable="datalim")
 
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def _draw_bode(self, data: EISData) -> None:
         self._reset_figure()
@@ -372,7 +374,7 @@ class EISPlotApp(ttk.Frame):
         ax_phase.grid(self.show_grid.get(), alpha=0.3)
 
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def _bode_series(self, data: EISData) -> tuple[list[float], list[float], list[float]]:
         y_values = data.minus_z_imag_ohm if self.bode_y_axis.get() == "-Z''" else data.z_abs_ohm

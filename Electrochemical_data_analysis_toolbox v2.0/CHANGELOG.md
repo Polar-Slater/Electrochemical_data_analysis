@@ -3,6 +3,42 @@
 All notable changes to the Electrochemical Data Analysis Toolbox are recorded
 here. Versions follow semantic versioning (`major.minor.patch`).
 
+## [2.5.0] - 2026-10-20
+
+### Added
+
+- Added an Edit Legend toolbar button in all plotting windows. Rename, reorder,
+  or hide individual legend entries without modifying curves, and edit the
+  legend title, font, size, position, columns, frame, and visibility.
+- Preserve legend edits across redraws and figure exports, including separate
+  ECSA panels. Legend entries map to their original handle order in each view.
+
+## [2.4.1] - 2026-10-20
+
+### Changed
+
+- Default plot fonts to Times New Roman, including titles, axes, tick labels,
+  legends, math text, and new annotations. Custom font settings remain available.
+- Apply the selected plot font family to legend entries as well.
+
+## [2.4.0] - 2026-10-20
+
+### Added
+
+- Shared Plot Settings for OCV, durability, LSV/Tafel, EIS, CV, ECSA, and
+  folder batch previews: axes, ticks, fonts, curve styles, legends, style presets,
+  and exact-size PNG/TIFF/PDF/SVG export.
+- Click-to-place text annotations with drag, double-click editing, deletion,
+  font styling, rotation, and data or plot-area anchoring. Annotations survive
+  redraws and appear in exports, including separate ECSA panel exports.
+
+## [2.3.2] - 2026-10-01
+
+### Changed
+
+- Entering the DRTtools page no longer launches the application automatically.
+  Click Open DRTtools on the page to launch it.
+
 ## [2.3.1] - 2026-09-24
 
 ### Changed

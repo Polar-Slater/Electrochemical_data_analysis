@@ -6,6 +6,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from plot_cv_txt import read_cv_data, summarize_cv_data
 
@@ -157,6 +158,7 @@ class CVPlotApp(ttk.Frame):
         toolbar_frame = ttk.Frame(plot_area)
         toolbar_frame.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, self.toolbar, self.plot_files)
         self.toolbar.update()
         self.toolbar.grid(row=0, column=0, sticky="w")
 
@@ -196,7 +198,7 @@ class CVPlotApp(ttk.Frame):
         self.reference_potential.set("Reference electrode potential: -- V")
         self.set_results_text("Open a CV file to calculate zero-current intersections.")
         self._draw_empty_plot()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def set_results_text(self, text: str) -> None:
         self.results_text.configure(state="normal")
@@ -207,7 +209,7 @@ class CVPlotApp(ttk.Frame):
     def plot_files(self) -> None:
         if not self.files:
             self._draw_empty_plot()
-            self.canvas.draw_idle()
+            self.plot_editor.refresh()
             return
 
         self.ax.clear()
@@ -245,7 +247,7 @@ class CVPlotApp(ttk.Frame):
             self.ax.legend(loc="best", fontsize=8)
 
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
         self.set_results_text("\n\n".join(summaries) if summaries else "No readable CV data.")
         if len(reference_values) == 1:
             self.reference_potential.set(f"Reference electrode potential: {reference_values[0]:.6g} V")
@@ -281,7 +283,7 @@ class CVPlotApp(ttk.Frame):
         if not output:
             return
 
-        self.figure.savefig(output, dpi=300)
+        self.plot_editor.save_figure(output)
         self.status.set(f"Saved plot to {output}")
 
 

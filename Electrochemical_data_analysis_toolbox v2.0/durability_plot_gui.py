@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from plot_durability_txt import DurabilityData, read_durability_data, summarize_durability_data
 
@@ -178,6 +179,7 @@ class DurabilityPlotApp(ttk.Frame):
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_area)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         toolbar = NavigationToolbar2Tk(self.canvas, plot_area, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, toolbar, self.redraw)
         toolbar.update()
         toolbar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
@@ -222,7 +224,7 @@ class DurabilityPlotApp(ttk.Frame):
         if not filename:
             return
 
-        self.figure.savefig(filename, dpi=300, bbox_inches="tight")
+        self.plot_editor.save_figure(filename)
         self.status.set(f"Saved plot to {Path(filename).name}")
 
     def export_data(self) -> None:
@@ -473,7 +475,7 @@ class DurabilityPlotApp(ttk.Frame):
         elif self.data is not None:
             self.status.set(f"Loaded {self.data.source.name}")
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def _draw_empty_plot(self) -> None:
         self.ax.clear()
@@ -491,7 +493,7 @@ class DurabilityPlotApp(ttk.Frame):
             color=MUTED,
         )
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
 
 def main() -> None:

@@ -41,3 +41,39 @@ are skipped and reported.
 
 Run `Start Electrochemical Toolbox.bat`, then choose a workflow from the home
 screen. Use the Return button on each tool page to go back to the initial page.
+
+### Plot formatting and text
+
+The plot toolbar has **Plot Settings**, **Add Text**, and **Edit Legend** buttons in the OCV,
+durability, LSV/Tafel, EIS, CV, ECSA, and folder batch plotting windows.
+
+- Select a panel in Plot Settings, then edit axes, labels/fonts, legends, or
+  individual curve styles. **Apply / Preview** updates the figure. Apply changes
+  before selecting another panel or curve. Blank paired axis limits enable
+  automatic scaling. Tick spacing is in axis units and applies to linear scales.
+- **Add Text**, then click inside the plot. Drag an annotation to move it;
+  double-click to edit or delete it. Turn off toolbar pan/zoom before placing or
+  moving text. Use Unicode Greek characters or Matplotlib math text such as
+  `$R_{ct}$` and `cm$^2$`. Plot-area anchoring stays fixed during zoom; data
+  anchoring follows the chosen data coordinates.
+- **Edit Legend** opens a panel selector and entry list. Select an entry to rename
+  it or turn off **Show entry**; use **Move up/down** to reorder entries. Set the
+  legend title, font, size, position, columns, frame, and visibility, then click
+  **Apply / Preview** before switching panels or closing. Hiding an entry does
+  not hide its curve. Edits persist through redraws and exports during the current
+  session, mapped by original legend-handle order. Entry edits and legend titles
+  are not included in style presets. Reset view clears these edits.
+- Export controls specify exact width/height in centimetres, resolution, and
+  transparency. **Export figure** supports PNG, TIFF, PDF, and SVG. Existing
+  Save plot buttons also use these export settings; ECSA still saves its two
+  separate panels, including their styles and annotations.
+- Save/load JSON style presets to reuse formatting. Presets exclude annotations,
+  axis labels, curve names, and axis limits. Panel and curve styles map by their
+  order. Settings and annotations otherwise persist during the current session,
+  separately for views with different original titles/axis labels.
+- **Reset view** clears the current view's formatting and annotations and
+  restores default export settings. The on-screen figure follows window size;
+  exact dimensions apply when exporting.
+
+This first version focuses on formatting and text. Insets, arrows, error bars,
+and multi-panel layout editing are not included.

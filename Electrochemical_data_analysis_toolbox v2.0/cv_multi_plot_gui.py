@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from cv_data import CVData, read_cv_data, summarize_data
 
@@ -203,6 +204,7 @@ class CVMultiPlotApp(ttk.Frame):
         toolbar_frame = ttk.Frame(plot_area)
         toolbar_frame.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, self.toolbar, self.plot_loaded_data)
         self.toolbar.update()
         self.toolbar.grid(row=0, column=0, sticky="w")
 
@@ -267,7 +269,7 @@ class CVMultiPlotApp(ttk.Frame):
         self.set_metadata_text("No CV files loaded.")
         self.status.set("Load CV text files to plot a selected cycle.")
         self._draw_empty_plot()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def plot_files(self) -> None:
         loaded: list[CVData] = []
@@ -481,13 +483,13 @@ class CVMultiPlotApp(ttk.Frame):
     def plot_loaded_data(self) -> None:
         if not self.data_sets:
             self._draw_empty_plot()
-            self.canvas.draw_idle()
+            self.plot_editor.refresh()
             return
 
         self._plot_cv_axis(self.ax_cv)
         self._plot_average_axis(self.ax_average)
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def save_plot(self) -> None:
         if not self.data_sets:
@@ -518,13 +520,13 @@ class CVMultiPlotApp(ttk.Frame):
         cv_axis = cv_figure.add_subplot(111)
         self._plot_cv_axis(cv_axis)
         cv_figure.tight_layout()
-        cv_figure.savefig(cv_path, dpi=300)
+        self.plot_editor.save_figure(cv_path, cv_figure, source_axis=0)
 
         average_figure = Figure(figsize=(7, 5), dpi=100)
         average_axis = average_figure.add_subplot(111)
         self._plot_average_axis(average_axis)
         average_figure.tight_layout()
-        average_figure.savefig(average_path, dpi=300)
+        self.plot_editor.save_figure(average_path, average_figure, source_axis=1)
 
         self.status.set(f"Saved separate plots to {cv_path.name} and {average_path.name}")
 

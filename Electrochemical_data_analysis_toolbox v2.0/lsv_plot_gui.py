@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from plot_lsv_txt import LSVData, read_lsv_data, summarize_lsv_data
 from scrollable_sidebar import ScrollableSidebar
@@ -250,6 +251,7 @@ class LSVPlotApp(ttk.Frame):
         toolbar_frame = ttk.Frame(plot_area)
         toolbar_frame.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, self.toolbar, self.plot_files)
         self.toolbar.update()
         self.toolbar.grid(row=0, column=0, sticky="w")
 
@@ -325,7 +327,7 @@ class LSVPlotApp(ttk.Frame):
         self.status.set("Choose one or more LSV text files.")
         self.set_results_text("Open an LSV file to view scan settings and plot the data.")
         self._draw_empty_plot()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def set_results_text(self, text: str) -> None:
         self.results_text.configure(state="normal")
@@ -487,7 +489,7 @@ class LSVPlotApp(ttk.Frame):
     def plot_files(self) -> None:
         if not self.files:
             self._draw_empty_plot()
-            self.canvas.draw_idle()
+            self.plot_editor.refresh()
             return
 
         if self.plot_mode.get() == "Tafel":
@@ -537,7 +539,7 @@ class LSVPlotApp(ttk.Frame):
             self.ax_adjusted.legend(loc="best", fontsize=8)
 
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
         self.set_results_text("\n\n".join(summaries) if summaries else "No readable LSV data.")
 
         if failures:
@@ -630,7 +632,7 @@ class LSVPlotApp(ttk.Frame):
             self.ax_adjusted.legend(loc="best", fontsize=8)
 
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
         self.set_results_text("\n\n".join(summaries) if summaries else "No readable LSV data.")
 
         if failures:
@@ -879,7 +881,7 @@ class LSVPlotApp(ttk.Frame):
         if not output:
             return
 
-        self.figure.savefig(output, dpi=300)
+        self.plot_editor.save_figure(output)
         self.status.set(f"Saved plot to {output}")
 
 

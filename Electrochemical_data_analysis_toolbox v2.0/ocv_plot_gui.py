@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from plot_editor import PlotEditor
 
 from plot_ocv_txt import OCVData, read_ocv_data, summarize_ocv_data
 
@@ -122,6 +123,7 @@ class OCVPlotApp(ttk.Frame):
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_area)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         toolbar = NavigationToolbar2Tk(self.canvas, plot_area, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, toolbar, self.redraw)
         toolbar.update()
         toolbar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
@@ -165,7 +167,7 @@ class OCVPlotApp(ttk.Frame):
         if not filename:
             return
 
-        self.figure.savefig(filename, dpi=300, bbox_inches="tight")
+        self.plot_editor.save_figure(filename)
         self.status.set(f"Saved plot to {Path(filename).name}")
 
     def export_data(self) -> None:
@@ -237,7 +239,7 @@ class OCVPlotApp(ttk.Frame):
         elif self.data is not None:
             self.status.set(f"Loaded {self.data.source.name}")
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def _draw_empty_plot(self) -> None:
         self.ax.clear()
@@ -255,7 +257,7 @@ class OCVPlotApp(ttk.Frame):
             color=MUTED,
         )
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
 
 def main() -> None:

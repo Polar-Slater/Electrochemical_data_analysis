@@ -17,6 +17,7 @@ if str(TOOLBOX_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLBOX_DIR))
 
 from cv_data import CVData as ECSACVData
+from plot_editor import PlotEditor
 from cv_data import read_cv_data as read_ecsa_cv_data
 from cv_data import summarize_data as summarize_ecsa_data
 from plot_cv_txt import CVData as ActiveCVData
@@ -438,6 +439,7 @@ class FolderBatchPlotApp(ttk.Frame):
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_area)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         toolbar = NavigationToolbar2Tk(self.canvas, plot_area, pack_toolbar=False)
+        self.plot_editor = PlotEditor(self, toolbar, self.refresh_plot)
         toolbar.update()
         toolbar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
@@ -1045,7 +1047,7 @@ class FolderBatchPlotApp(ttk.Frame):
             self._draw_empty_plot(plot_name)
         else:
             self.figure.tight_layout()
-            self.canvas.draw_idle()
+            self.plot_editor.refresh()
         self.set_details("\n\n".join(details) if details else f"No readable {plot_name} data.")
         if failures:
             file_failures = [failure for failure in failures if self.is_file_failure_message(failure)]
@@ -1073,7 +1075,7 @@ class FolderBatchPlotApp(ttk.Frame):
         self.ax.grid(True, alpha=0.3)
         self.ax.text(0.5, 0.5, "Import a folder", transform=self.ax.transAxes, ha="center", va="center", color=MUTED)
         self.figure.tight_layout()
-        self.canvas.draw_idle()
+        self.plot_editor.refresh()
 
     def set_details(self, text: str) -> None:
         self.details_text.configure(state="normal")
@@ -1217,7 +1219,7 @@ class FolderBatchPlotApp(ttk.Frame):
         )
         if not output:
             return
-        self.figure.savefig(output, dpi=300, bbox_inches="tight")
+        self.plot_editor.save_figure(output)
         self.status.set(f"Saved plot to {Path(output).name}")
 
     def export_data(self) -> None:
