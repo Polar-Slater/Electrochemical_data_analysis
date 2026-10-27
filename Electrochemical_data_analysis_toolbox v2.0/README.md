@@ -14,6 +14,7 @@ This GUI opens the existing electrochemical plotting tools from one control pane
 - ECSA identifier
 - LSV Plotter
 - EIS Plotter
+- Kramers–Kronig Validator
 - EIS to ZView converter
 - Folder batch plotter
 - Data processor for individual files or complete sample folders
@@ -38,6 +39,16 @@ the target blank to save beside each source. Each output is saved as
 Frequency in Hz, Z' in ohm, and Z'' in ohm. Original signs, row order, and
 impedance values are preserved without area normalization. Existing exports
 are skipped and reported.
+
+Choose **Kramers–Kronig Validator** to import CH Instruments EIS text, CSV,
+TSV, whitespace-delimited TXT, or Gamry-style DTA data. Click **Run KK test**
+to fit a linear K–K RC basis and inspect the fitted spectra, normalized
+residuals, and pseudo-χ². **Export results** saves measured and fitted values
+and residuals to CSV. The 5% RMS verdict is a screening guide.
+
+The historical v1.0 copy is stored in `../archive/`, which is ignored by Git.
+The current toolbox does not depend on that archive. Previously committed
+v1.0 files remain available in Git history.
 
 Run `Start Electrochemical Toolbox.bat`, then choose a workflow from the home
 screen. Use the Return button on each tool page to go back to the initial page.

@@ -3,6 +3,19 @@
 All notable changes to the Electrochemical Data Analysis Toolbox are recorded
 here. Versions follow semantic versioning (`major.minor.patch`).
 
+## [2.7.0] - 2026-10-27
+
+### Added
+
+- Integrated the v1.0 Kramers–Kronig Validator into the v2 home screen,
+  including EIS import, linear K–K fitting, residual plots, and CSV export.
+  The validator and analysis package now reside entirely in v2.
+
+### Changed
+
+- Relocated the historical v1.0 toolbox to the repository-root `archive/`
+  directory, which is excluded from Git tracking by `.gitignore`.
+
 ## [2.6.1] - 2026-10-26
 
 ### Changed

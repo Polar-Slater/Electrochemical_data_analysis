@@ -5,3 +5,6 @@ __pycache__/
 
 # Local Codex workspace metadata
 .agents/
+
+# Local historical toolbox copies (not published to GitHub)
+/archive/

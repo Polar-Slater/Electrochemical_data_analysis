@@ -14,6 +14,7 @@ from cv_multi_plot_gui import CVMultiPlotApp
 from cv_plot_gui import CVPlotApp
 from durability_plot_gui import DurabilityPlotApp
 from eis_plot_gui import EISPlotApp
+from kramers_kronig_gui import KKPlotApp
 from lsv_plot_gui import LSVPlotApp
 from ocv_plot_gui import OCVPlotApp
 from processing_gui import DataProcessingPage
@@ -128,6 +129,11 @@ class ExperimentProcedurePage(ttk.Frame):
 
 TOOLS = [
     ToolDefinition(
+        title="Kramers–Kronig Validator",
+        subtitle="Check EIS spectra for linear K–K consistency",
+        page_factory=KKPlotApp,
+    ),
+    ToolDefinition(
         title="EIS to ZView",
         subtitle="Convert EIS files to tab-separated ZView text files",
         page_factory=ZViewConverterPage,
@@ -186,7 +192,7 @@ TOOLS = [
 
 HOME_COLUMNS = (
     ("Open circuit voltage", "LSV Plotter", "EIS Plotter", "ECSA identifier", "Durability"),
-    ("Data processor", "DRTtools", "Folder batch plotter", "EIS to ZView"),
+    ("Data processor", "DRTtools", "Folder batch plotter", "EIS to ZView", "Kramers–Kronig Validator"),
     ("Reference electrode potential", "Experiment procedure"),
 )
 
