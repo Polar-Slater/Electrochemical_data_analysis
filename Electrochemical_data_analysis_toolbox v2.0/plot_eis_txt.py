@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -17,6 +19,7 @@ class EISData:
     z_imag_ohm: list[float]
     z_abs_ohm: list[float]
     phase_deg: list[float]
+    operating_voltage_v: float | None = None
 
     @property
     def minus_z_imag_ohm(self) -> list[float]:
@@ -76,7 +79,21 @@ def read_eis_data(path: str | Path) -> EISData:
         z_imag_ohm=z_imag_ohm,
         z_abs_ohm=z_abs_ohm,
         phase_deg=phase_deg,
+        operating_voltage_v=read_operating_voltage(lines[:data_start]),
     )
+
+
+def read_operating_voltage(lines: Iterable[str]) -> float | None:
+    """Read the CHI DC bias on its recorded reference scale, never AC amplitude."""
+    for line in lines:
+        match = re.match(r"\s*Init\s+E\s*\(V\)\s*=\s*(\S+)\s*$", line, re.IGNORECASE)
+        if match:
+            try:
+                value = float(match.group(1))
+            except ValueError:
+                return None
+            return value if math.isfinite(value) else None
+    return None
 
 
 def write_processed_eis_data(data: EISData, path: str | Path, working_area: float | None = None) -> None:

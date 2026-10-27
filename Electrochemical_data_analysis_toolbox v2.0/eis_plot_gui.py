@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import warnings
+import math
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -36,6 +37,7 @@ class EISPlotApp(ttk.Frame):
         self.frequency_scale = tk.StringVar(value="log")
         self.bode_y_axis = tk.StringVar(value="Z")
         self.working_area = tk.StringVar(value="")
+        self.operating_voltage = tk.StringVar(value="")
 
         self._configure_styles()
         self._build_layout()
@@ -124,6 +126,16 @@ class EISPlotApp(ttk.Frame):
             row=9, column=0, sticky="w", pady=2
         )
         options.columnconfigure(1, weight=1)
+        ttk.Radiobutton(options, text="3D Nyquist", variable=self.plot_type, value="3D Nyquist", command=self.redraw).grid(
+            row=10, column=0, columnspan=2, sticky="w", pady=(10, 2)
+        )
+        ttk.Label(options, text="Operating voltage (V)", style="Panel.TLabel").grid(row=11, column=0, columnspan=2, sticky="w")
+        voltage_entry = ttk.Entry(options, textvariable=self.operating_voltage, width=16)
+        voltage_entry.grid(row=12, column=0, columnspan=2, sticky="ew")
+        voltage_entry.bind("<KeyRelease>", lambda _event: self.redraw())
+        ttk.Label(options, text="CHI Init E; recorded reference scale.\nDrag the 3D plot to rotate.", style="Muted.TLabel").grid(
+            row=13, column=0, columnspan=2, sticky="w"
+        )
 
         area_frame = ttk.LabelFrame(sidebar, text="Working area: ", padding=10)
         area_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 14))
@@ -179,6 +191,8 @@ class EISPlotApp(ttk.Frame):
             return
 
         stats = summarize_eis_data(self.data)
+        voltage = self.data.operating_voltage_v
+        self.operating_voltage.set("" if voltage is None else f"{voltage:g}")
         self.summary.set(
             "\n".join(
                 [
@@ -195,6 +209,7 @@ class EISPlotApp(ttk.Frame):
 
     def clear_plot(self) -> None:
         self.data = None
+        self.operating_voltage.set("")
         self.summary.set("No file loaded.")
         self.status.set("Open an EIS text file to plot.")
         self._draw_empty_plot()
@@ -205,6 +220,13 @@ class EISPlotApp(ttk.Frame):
             return
 
         plot_suffix = "bode" if self.plot_type.get() == "Bode" else "nyquist"
+        if self.plot_type.get() == "3D Nyquist":
+            try:
+                self.get_operating_voltage()
+            except ValueError:
+                messagebox.showwarning("Missing operating voltage", "Enter a finite operating voltage before saving a 3D plot.")
+                return
+            plot_suffix = "nyquist_3d"
         default_name = f"{self.data.source.stem}_{plot_suffix}.png"
         filename = filedialog.asksaveasfilename(
             title="Save EIS plot",
@@ -262,14 +284,17 @@ class EISPlotApp(ttk.Frame):
         if self.data is None:
             self._draw_empty_plot()
             return
-        if self.plot_type.get() == "Bode":
+        if self.plot_type.get() == "3D Nyquist":
+            self._draw_nyquist_3d(self.data)
+        elif self.plot_type.get() == "Bode":
             self._draw_bode(self.data)
         else:
             self._draw_nyquist(self.data)
 
-    def _draw_empty_plot(self) -> None:
+    def _draw_empty_plot(self, message: str = "Open an EIS text file") -> None:
         self._reset_figure()
-        self.ax = self.figure.add_subplot(111)
+        is_3d = self.plot_type.get() == "3D Nyquist"
+        self.ax = self.figure.add_subplot(111, projection="3d" if is_3d else None)
         self.ax.clear()
         if self.plot_type.get() == "Bode":
             self.ax.set_title("Bode Plot")
@@ -279,11 +304,16 @@ class EISPlotApp(ttk.Frame):
             self.ax.set_title("Nyquist Plot")
             self.ax.set_xlabel(f"Z' ({self._impedance_unit()})")
             self.ax.set_ylabel(f"-Z'' ({self._impedance_unit()})")
+        if is_3d:
+            self.ax.set_title("3D Nyquist Plot")
+            self.ax.set_ylabel("Operating voltage (V)")
+            self.ax.set_zlabel(f"-Z'' ({self._impedance_unit()})")
         self.ax.grid(True, alpha=0.3)
-        self.ax.text(
+        draw_text = self.ax.text2D if is_3d else self.ax.text
+        draw_text(
             0.5,
             0.5,
-            "Open an EIS text file",
+            message,
             transform=self.ax.transAxes,
             ha="center",
             va="center",
@@ -291,6 +321,41 @@ class EISPlotApp(ttk.Frame):
         )
         self.figure.tight_layout()
         self.plot_editor.refresh()
+
+    def get_operating_voltage(self) -> float:
+        voltage = float(self.operating_voltage.get().strip())
+        if not math.isfinite(voltage):
+            raise ValueError("Operating voltage must be finite.")
+        return voltage
+
+    def _draw_nyquist_3d(self, data: EISData) -> None:
+        try:
+            voltage = self.get_operating_voltage()
+        except ValueError:
+            self._draw_empty_plot("Enter an operating voltage (V)")
+            self.status.set("3D Nyquist requires a finite operating voltage.")
+            return
+        self._reset_figure()
+        self.ax = self.figure.add_subplot(111, projection="3d")
+        scale = self._impedance_scale()
+        self.ax.plot(
+            [value * scale for value in data.z_real_ohm],
+            [voltage] * len(data.frequency_hz),
+            [value * scale for value in data.minus_z_imag_ohm],
+            color=ACCENT, marker="o" if self.show_points.get() else None,
+            markersize=4, linewidth=1.5,
+            linestyle="-" if self.connect_points.get() else "None",
+        )
+        self.ax.set_title(f"3D Nyquist Plot - {data.source.stem}")
+        self.ax.set_xlabel(f"Z' ({self._impedance_unit()})")
+        self.ax.set_ylabel("Operating voltage (V)")
+        self.ax.set_zlabel(f"-Z'' ({self._impedance_unit()})")
+        self.ax.grid(self.show_grid.get())
+        if self.equal_aspect.get():
+            self.ax.set_aspect("equalxz")
+        self.figure.tight_layout()
+        self.plot_editor.refresh()
+        self.status.set(f"Operating voltage: {voltage:g} V (recorded reference scale).")
 
     def _draw_nyquist(self, data: EISData) -> None:
         self._reset_figure()

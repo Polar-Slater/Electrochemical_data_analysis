@@ -3,6 +3,23 @@
 All notable changes to the Electrochemical Data Analysis Toolbox are recorded
 here. Versions follow semantic versioning (`major.minor.patch`).
 
+## [2.6.1] - 2026-10-26
+
+### Changed
+
+- Place -Z'' on the vertical (Z) axis in both 3D Nyquist views, with Z' on X
+  and operating voltage on Y. Equal impedance scaling now applies to XZ.
+
+## [2.6.0] - 2026-10-26
+
+### Added
+
+- Added rotatable 3D Nyquist plots to the EIS and folder batch plotters with
+  Z', -Z'', and operating voltage axes. Voltage comes from CHI Init E (V)
+  on the recorded reference scale; the single-file plotter permits manual entry.
+- Report files without valid operating voltage when building a 3D comparison.
+  Working-area normalization affects only impedance; equal axes applies to XY.
+
 ## [2.5.0] - 2026-10-20
 
 ### Added

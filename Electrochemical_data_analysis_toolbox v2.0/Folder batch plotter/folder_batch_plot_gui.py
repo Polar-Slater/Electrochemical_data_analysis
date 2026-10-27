@@ -246,6 +246,12 @@ class FolderBatchPlotApp(ttk.Frame):
         ttk.Checkbutton(eis_options, text="Equal axes", variable=self.eis_equal_aspect, command=self.refresh_plot).grid(row=3, column=0, sticky="w")
         ttk.Checkbutton(eis_options, text="Points", variable=self.show_points, command=self.refresh_plot).grid(row=3, column=1, sticky="w", padx=(16, 0))
         ttk.Checkbutton(eis_options, text="Connect", variable=self.connect_points, command=self.refresh_plot).grid(row=4, column=0, sticky="w")
+        ttk.Radiobutton(eis_options, text="3D Nyquist", value="3D Nyquist", variable=self.eis_plot_type, command=self.refresh_plot).grid(
+            row=5, column=0, columnspan=2, sticky="w", pady=(8, 0)
+        )
+        ttk.Label(eis_options, text="Voltage: CHI Init E (V), recorded scale.\nDrag the 3D plot to rotate.", style="Panel.TLabel").grid(
+            row=6, column=0, columnspan=2, sticky="w"
+        )
         ttk.Label(options, text="Current", style="Panel.TLabel").grid(row=2, column=0, sticky="w", pady=(10, 2))
         ttk.Radiobutton(options, text="A", value="A", variable=self.current_units, command=self.refresh_plot).grid(
             row=3, column=0, sticky="w"
@@ -878,16 +884,22 @@ class FolderBatchPlotApp(ttk.Frame):
             if self.show_legend.get() and loaded:
                 ax_z.legend(loc="best", fontsize=8)
         else:
-            self.ax = self.figure.add_subplot(111)
+            is_3d = self.eis_plot_type.get() == "3D Nyquist"
+            self.ax = self.figure.add_subplot(111, projection="3d" if is_3d else None)
             for item in items:
                 try:
                     data = self.get_eis(item)
                 except Exception as exc:
                     failures.append(f"{item.path.name}: {exc}")
                     continue
+                if is_3d and data.operating_voltage_v is None:
+                    failures.append(f"{item.path.name}: missing or invalid CHI Init E (V); omitted from 3D plot.")
+                    continue
+                minus_imag = [value * impedance_scale for value in data.minus_z_imag_ohm]
+                yz_axes = ([data.operating_voltage_v] * len(data.frequency_hz), minus_imag) if is_3d else (minus_imag,)
                 self.ax.plot(
                     [value * impedance_scale for value in data.z_real_ohm],
-                    [value * impedance_scale for value in data.minus_z_imag_ohm],
+                    *yz_axes,
                     marker=marker,
                     markersize=3,
                     linewidth=1.2,
@@ -896,9 +908,15 @@ class FolderBatchPlotApp(ttk.Frame):
                 )
                 details.append(self.eis_detail(item, data))
                 loaded += 1
-            self.decorate_axis("EIS Nyquist", f"Z' / {impedance_unit}", f"-Z'' / {impedance_unit}", loaded)
+            self.decorate_axis("EIS 3D Nyquist" if is_3d else "EIS Nyquist", f"Z' / {impedance_unit}", f"-Z'' / {impedance_unit}", loaded)
+            if is_3d:
+                self.ax.set_ylabel("Operating voltage (V)")
+                self.ax.set_zlabel(f"-Z'' / {impedance_unit}")
             if loaded and self.eis_equal_aspect.get():
-                self.ax.set_aspect("equal", adjustable="datalim")
+                if is_3d:
+                    self.ax.set_aspect("equalxz")
+                else:
+                    self.ax.set_aspect("equal", adjustable="datalim")
         self.finish_plot("EIS", loaded, failures, details)
 
     def eis_detail(self, item: FolderFile, data: EISData) -> str:

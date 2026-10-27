@@ -77,3 +77,16 @@ durability, LSV/Tafel, EIS, CV, ECSA, and folder batch plotting windows.
 
 This first version focuses on formatting and text. Insets, arrows, error bars,
 and multi-panel layout editing are not included.
+# 3D Nyquist plots
+
+In the EIS plotter, choose **3D Nyquist**. X is Z', Y is operating voltage (V),
+and the vertical Z axis is -Z''. Voltage is read from the CHI `Init E (V)` header; you can enter or
+override it in the operating-voltage field. Missing or nonfinite voltage must
+be supplied before plotting. Drag the plot to rotate, then use **Save plot**.
+
+To compare measurements at different voltages, open the **Folder batch plotter**,
+select EIS files and choose **3D Nyquist** in EIS options. Each spectrum is drawn
+at its own recorded voltage. Files without valid `Init E (V)` are reported and
+omitted. Use files measured on the same reference scale: no RHE conversion is
+applied. Working area scales only impedance; **Equal axes** applies to Z' and
+-Z'', not voltage. The original 2D Nyquist and Bode options remain available.
