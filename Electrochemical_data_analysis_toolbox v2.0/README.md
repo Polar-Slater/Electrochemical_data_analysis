@@ -31,6 +31,24 @@ Folder processing skips deposition files named `_it`; they can still be converte
 through individual-file processing when needed. Existing matching CSV files are
 only replaced after confirmation.
 
+CP iR correction uses the signed recorded current: `E + reference - I * Rs * fraction`.
+Nonzero correction requires a finite current and resistance. Multi-Current Steps
+and multi-segment CP correction are not supported until the per-step signed
+current schedule can be resolved; set CP compensation to zero to plot/export
+these files with an optional reference offset. Current signs are preserved in
+summaries and exports.
+
+Correction settings must be finite numbers (no NaN or infinity). Area must be
+positive, resistance non-negative, and compensation between 0 and 100 percent.
+For LSV processing, a blank resistance resolves each file's `... ohm` filename
+value; an entered resistance explicitly overrides all selected files. Nonzero
+compensation with no resolved resistance fails that file without replacing its
+CSV. Folder selection never transfers the first file's resistance to other
+measurements. The standalone LSV plotter requires an explicit shared resistance;
+the batch plotter supports individual filename values and per-file overrides.
+Exports record resistance source and whether iR correction was applied. A zero
+percentage (or zero resistance) produces a label without `iR-corrected`.
+
 Choose **EIS to ZView**, select one or more CHI EIS `.txt` files, and click
 **Convert to ZView**. Select a file in the list to preview its first 500 output
 rows (all rows are exported). Use **Browse…** to choose a target folder, or leave
@@ -52,6 +70,14 @@ v1.0 files remain available in Git history.
 
 Run `Start Electrochemical Toolbox.bat`, then choose a workflow from the home
 screen. Use the Return button on each tool page to go back to the initial page.
+
+The Windows launchers use `.venv\Scripts\python.exe` in the toolbox directory
+when present, otherwise `python` from the active environment or PATH. No Python
+minor version is pinned. Install the main toolbox dependencies into that same
+environment: `python -m pip install numpy matplotlib`, or
+`.venv\Scripts\python.exe -m pip install numpy matplotlib` for the local virtual
+environment. Advanced EIS/DRT workflows have additional dependencies documented
+separately.
 
 ### Plot formatting and text
 

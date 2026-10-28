@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import csv
+from correction_settings import finite_number, positive_area, parse_ir_fields, validate_ir, ir_applied, ir_metadata
 import math
 import tkinter as tk
 from pathlib import Path
@@ -373,36 +374,22 @@ class LSVPlotApp(ttk.Frame):
         raw_value = self.rhe_offset.get().strip()
         if not raw_value:
             return None
-        return float(raw_value)
+        return finite_number(raw_value, "Potential")
 
     def get_working_area(self) -> float | None:
         raw_value = self.working_area.get().strip()
         if not raw_value:
             return None
-        area = float(raw_value)
-        if area <= 0:
-            raise ValueError
-        return area
+        return positive_area(raw_value)
 
-    def get_ir_compensation(self) -> tuple[float, float] | None:
-        raw_rs = self.solution_resistance.get().strip()
-        raw_level = self.compensation_level.get().strip()
-        if not raw_rs and not raw_level:
-            return None
-        if not raw_rs or not raw_level:
-            raise ValueError
-
-        resistance = float(raw_rs)
-        level_percent = float(raw_level)
-        if resistance < 0 or level_percent < 0:
-            raise ValueError
-        return resistance, level_percent / 100
+    def get_ir_compensation(self) -> tuple[float | None, float] | None:
+        return parse_ir_fields(self.solution_resistance.get(), self.compensation_level.get())
 
     def get_equilibrium_potential(self) -> float:
         raw_value = self.equilibrium_potential.get().strip()
         if not raw_value:
             return 1.23
-        return float(raw_value)
+        return finite_number(raw_value, "Potential")
 
     def get_potential_axis_label(self) -> str:
         try:
@@ -413,9 +400,9 @@ class LSVPlotApp(ttk.Frame):
             ir_compensation = self.get_ir_compensation()
         except ValueError:
             ir_compensation = None
-        if ir_compensation is not None and offset is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation) and offset is not None:
             return "Potential (V vs. RHE, iR-corrected)"
-        if ir_compensation is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation):
             return "Potential (V, iR-corrected)"
         if offset is None:
             return "Potential / V"
@@ -441,21 +428,21 @@ class LSVPlotApp(ttk.Frame):
         errors: list[str] = []
         try:
             rhe_offset = self.get_rhe_offset()
-        except ValueError:
+        except ValueError as exc:
             rhe_offset = None
-            errors.append("Ref electrode potential must be a number.")
+            errors.append(str(exc))
 
         try:
             working_area = self.get_working_area()
-        except ValueError:
+        except ValueError as exc:
             working_area = None
-            errors.append("Working area must be a positive number.")
+            errors.append(str(exc))
 
         try:
             ir_compensation = self.get_ir_compensation()
-        except ValueError:
+        except ValueError as exc:
             ir_compensation = None
-            errors.append("Rs and compensation level must be non-negative numbers.")
+            errors.append(str(exc))
 
         return rhe_offset, working_area, ir_compensation, errors
 
@@ -469,9 +456,9 @@ class LSVPlotApp(ttk.Frame):
         if rhe_offset is not None:
             adjusted_potentials = [potential + rhe_offset for potential in data.potentials]
         if ir_compensation is not None:
-            resistance, compensation_fraction = ir_compensation
+            resistance, compensation_fraction = validate_ir(ir_compensation[0], ir_compensation[1] * 100)
             adjusted_potentials = [
-                potential - current * resistance * compensation_fraction
+                potential - current * (resistance or 0.0) * compensation_fraction
                 for potential, current in zip(adjusted_potentials, data.currents)
             ]
         return adjusted_potentials
@@ -506,6 +493,11 @@ class LSVPlotApp(ttk.Frame):
         scale = CURRENT_UNITS[unit]
         original_scale = CURRENT_UNITS[ORIGINAL_CURRENT_UNIT]
         rhe_offset, working_area, ir_compensation, setting_errors = self.get_plot_settings()
+
+        if setting_errors:
+            self.status.set(setting_errors[0])
+            self.plot_editor.refresh()
+            return
 
         for path in self.files:
             try:
@@ -551,7 +543,7 @@ class LSVPlotApp(ttk.Frame):
             transforms: list[str] = []
             if rhe_offset is not None:
                 transforms.append(f"added {rhe_offset:g} V to Potential")
-            if ir_compensation is not None:
+            if ir_compensation is not None and ir_applied(*ir_compensation):
                 resistance, compensation_fraction = ir_compensation
                 transforms.append(f"iR-corrected with Rs {resistance:g} ohm at {compensation_fraction * 100:g}%")
             if working_area is not None:
@@ -580,6 +572,11 @@ class LSVPlotApp(ttk.Frame):
 
         if working_area is None:
             setting_errors.append("Working area is required for Tafel slope.")
+
+        if setting_errors:
+            self.status.set(setting_errors[0])
+            self.plot_editor.refresh()
+            return
 
         for path in self.files:
             try:
@@ -697,7 +694,9 @@ class LSVPlotApp(ttk.Frame):
         original_scale = CURRENT_UNITS[ORIGINAL_CURRENT_UNIT]
         rhe_offset, working_area, ir_compensation, setting_errors = self.get_plot_settings()
         if setting_errors:
-            messagebox.showwarning("Exporting without invalid transforms", setting_errors[0])
+            messagebox.showerror("Cannot export data", "\n".join(setting_errors))
+            self.status.set(setting_errors[0])
+            return
 
         rows_written = 0
         failures: list[str] = []
@@ -717,6 +716,8 @@ class LSVPlotApp(ttk.Frame):
                         compensation_fraction * 100,
                     ]
                 )
+            resistance, fraction = ir_compensation if ir_compensation is not None else (None, 0.0)
+            writer.writerow(ir_metadata(resistance, fraction, "explicit" if resistance is not None else "not supplied"))
             writer.writerow([])
             writer.writerow(
                 [
@@ -784,7 +785,9 @@ class LSVPlotApp(ttk.Frame):
             self.status.set("Tafel export needs a valid working area.")
             return
         if setting_errors:
-            messagebox.showwarning("Exporting with warnings", setting_errors[0])
+            messagebox.showerror("Cannot export data", "\n".join(setting_errors))
+            self.status.set(setting_errors[0])
+            return
 
         rows_written = 0
         failures: list[str] = []
@@ -805,6 +808,8 @@ class LSVPlotApp(ttk.Frame):
                         compensation_fraction * 100,
                     ]
                 )
+            resistance, fraction = ir_compensation if ir_compensation is not None else (None, 0.0)
+            writer.writerow(ir_metadata(resistance, fraction, "explicit" if resistance is not None else "not supplied"))
             writer.writerow([])
             writer.writerow(
                 [

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from correction_settings import finite_number, validate_ir
 
 
 POTENTIAL_DATA_HEADER = ("Time/sec", "Potential/V")
@@ -89,11 +91,34 @@ class DurabilityData:
 
     @property
     def display_current_a(self) -> float | None:
-        if self.metadata.current_a is None:
-            return None
-        if self.metadata.mode == MODE_MULTI_CURRENT:
-            return abs(self.metadata.current_a)
+        """Preserve the recorded sign in summaries and exported metadata."""
         return self.metadata.current_a
+
+    def corrected_potentials(
+        self,
+        reference_offset: float = 0.0,
+        resistance: float | None = None,
+        compensation_fraction: float = 0.0,
+    ) -> list[float]:
+        """Correct constant-current CP; stepped current schedules are unsupported."""
+        reference_offset = finite_number(reference_offset, "Reference potential")
+        resistance, compensation_fraction = validate_ir(resistance, compensation_fraction * 100)
+        correction = 0.0
+        if compensation_fraction > 0:
+            if self.metadata.mode == MODE_MULTI_CURRENT or (
+                self.metadata.segment is not None and self.metadata.segment != 1
+            ):
+                raise ValueError(
+                    "iR correction for multi-step CP is not supported: a signed current "
+                    "schedule is required. Set CP compensation to 0 to use uncorrected data."
+                )
+            current = self.metadata.current_a
+            if current is None or not math.isfinite(current):
+                raise ValueError("CP iR correction requires a finite signed applied current.")
+            if resistance is None or not math.isfinite(resistance) or resistance < 0:
+                raise ValueError("CP iR correction requires a finite, non-negative resistance.")
+            correction = current * resistance * compensation_fraction
+        return [potential + reference_offset - correction for potential in self.potentials_v]
 
 
 def parse_metadata(lines: list[str]) -> DurabilityMetadata:
