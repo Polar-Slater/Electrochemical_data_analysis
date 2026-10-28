@@ -3,6 +3,46 @@
 All notable changes to the Electrochemical Data Analysis Toolbox are recorded
 here. Versions follow semantic versioning (`major.minor.patch`).
 
+## [2.7.4] - 2026-10-28
+
+### Fixed
+- Remove the Python minor-version pin from both Windows launchers. Prefer the
+  toolbox's `.venv\Scripts\python.exe` when present; otherwise use `python`
+  from the active environment or PATH. Both launchers share the same selection.
+
+## [2.7.3] - 2026-10-28
+
+### Fixed
+- Select Python 3.14 explicitly in the Windows toolbox and folder batch plotter
+  launchers. The unqualified `python` command selected a separate Python 3.15
+  installation without Matplotlib and prevented startup.
+
+## [2.7.2] - 2026-10-28
+
+### Fixed
+- Centralize finite-value, positive-area, non-negative resistance, and 0–100%
+  compensation validation. Invalid GUI settings block plotting/export rather
+  than silently omitting requested transforms.
+- Require a resolved resistance for nonzero LSV compensation. The CSV processor
+  and batch plotter resolve filename resistance per file; folder selection no
+  longer copies the first LSV resistance to every LSV or CP measurement.
+- Record resistance provenance and correction status in exports. Zero-percent
+  or zero-resistance outputs use potential labels without `iR-corrected`.
+  The Origin adapter must support the uncorrected RHE LSV header (skill 0.1.1).
+
+## [2.7.1] - 2026-10-28
+
+### Fixed
+
+- Preserve recorded current signs in CP metadata and share the signed iR
+  calculation across the CSV processor, durability plotter, and batch plotter.
+- Reject nonzero iR compensation for Multi-Current Steps and multi-segment CP
+  until a signed per-step current schedule is supported. Zero-compensation
+  plotting/export and reference-potential offsets remain available.
+- Reject missing/nonfinite correction currents or resistances and invalid
+  compensation fractions. Report unsupported corrections before writing CP
+  exports; batch CP export validates all selected traces before writing.
+
 ## [2.7.0] - 2026-10-27
 
 ### Added

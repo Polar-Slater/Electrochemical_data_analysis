@@ -4,7 +4,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from origin_csv import ProcessingSettings, infer_solution_resistance, infer_working_area, process_files, process_sample_folder
+from origin_csv import ProcessingSettings, infer_working_area, process_files, process_sample_folder
 
 
 class DataProcessingPage(ttk.Frame):
@@ -44,7 +44,7 @@ class DataProcessingPage(ttk.Frame):
             ("Working area (cm²)", self.working_area),
             ("Reference potential (V vs. RHE)", self.reference_potential),
             ("Water-splitting equilibrium potential (V)", self.equilibrium_potential),
-            ("LSV resistance (ohm; blank = filename)", self.solution_resistance),
+            ("LSV resistance (ohm; override all files; blank = each filename)", self.solution_resistance),
             ("LSV compensation level (%)", self.compensation),
             ("CP solution resistance (ohm)", self.cp_solution_resistance),
             ("CP compensation level (%)", self.cp_compensation),
@@ -84,13 +84,6 @@ class DataProcessingPage(ttk.Frame):
         area = infer_working_area(folder)
         if area is not None:
             self.working_area.set(f"{area:g}")
-        lsv_files = list(folder.glob("*LSV*.txt")) + list(folder.glob("*LCV*.txt"))
-        if lsv_files and not self.solution_resistance.get().strip():
-            resistance = infer_solution_resistance(lsv_files[0])
-            if resistance is not None:
-                self.solution_resistance.set(f"{resistance:g}")
-                if not self.cp_solution_resistance.get().strip():
-                    self.cp_solution_resistance.set(f"{resistance:g}")
         self.status.set(f"Loaded sample folder: {folder.name}")
 
     def choose_output(self) -> None:

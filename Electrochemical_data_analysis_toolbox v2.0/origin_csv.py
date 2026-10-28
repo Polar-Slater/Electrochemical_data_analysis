@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from cv_data import CVData, read_cv_data
+from correction_settings import finite_number, positive_area, validate_ir, resistance_from_filename, resolve_lsv_resistance, ir_applied, ir_metadata
 from plot_durability_txt import DurabilityData, read_durability_data
 from plot_eis_txt import EISData, read_eis_data
 from plot_lsv_txt import LSVData, read_lsv_data
@@ -30,18 +31,16 @@ class ProcessingSettings:
     cp_compensation_percent: float = 0.0
 
     def validate(self) -> None:
-        if self.working_area_cm2 <= 0:
-            raise ValueError("Working area must be greater than zero.")
-        if self.solution_resistance_ohm is not None and self.solution_resistance_ohm < 0:
-            raise ValueError("Solution resistance cannot be negative.")
-        if self.cp_solution_resistance_ohm is not None and self.cp_solution_resistance_ohm < 0:
-            raise ValueError("CP solution resistance cannot be negative.")
-        if not 0 <= self.compensation_percent <= 100:
-            raise ValueError("Compensation level must be between 0 and 100 percent.")
-        if self.ecsa_cycle_number is not None and self.ecsa_cycle_number < 1:
-            raise ValueError("ECSA cycle number must be at least 1.")
-        if not 0 <= self.cp_compensation_percent <= 100:
-            raise ValueError("CP compensation level must be between 0 and 100 percent.")
+        positive_area(self.working_area_cm2)
+        finite_number(self.reference_potential_v, "Reference potential")
+        finite_number(self.equilibrium_potential_v, "Equilibrium potential")
+        # Resolve required resistance for each affected file, not for unrelated CA/OCV files.
+        validate_ir(self.solution_resistance_ohm, self.compensation_percent, require_resistance=False)
+        validate_ir(self.cp_solution_resistance_ohm, self.cp_compensation_percent, require_resistance=False)
+        if self.ecsa_cycle_number is not None:
+            cycle = finite_number(self.ecsa_cycle_number, "ECSA cycle number")
+            if cycle < 1 or not cycle.is_integer():
+                raise ValueError("ECSA cycle number must be a positive integer.")
 
 
 @dataclass(frozen=True)
@@ -63,8 +62,7 @@ def infer_sample_name(folder: str | Path) -> str:
 
 
 def infer_solution_resistance(path: str | Path) -> float | None:
-    match = RS_FROM_NAME.search(Path(path).stem)
-    return float(match.group("rs")) if match else None
+    return resistance_from_filename(path)
 
 
 def measurement_type(path: str | Path) -> str:
@@ -144,17 +142,18 @@ def _effective_resistance(source: Path, settings: ProcessingSettings) -> float |
 
 
 def write_lsv_csv(data: LSVData, source: Path, destination: Path, settings: ProcessingSettings) -> None:
-    resistance = _effective_resistance(source, settings)
-    fraction = settings.compensation_percent / 100
+    settings.validate()
+    resistance, fraction, resistance_source = resolve_lsv_resistance(source, settings.solution_resistance_ohm, settings.compensation_percent)
+    label = "V vs. RHE, iR-corrected" if ir_applied(resistance, fraction) else "V vs. RHE"
     area = settings.working_area_cm2
     rows: list[Sequence[object]] = [
         ["Reference electrode potential (V vs. RHE)", _format(settings.reference_potential_v), "", "", ""],
         ["Water-splitting equilibrium potential (V vs. RHE)", _format(settings.equilibrium_potential_v), "", "", ""],
         ["Working area (cm²)", _format(area), "", "", ""],
         ["Solution resistance (ohm)", _format(resistance), "Compensation level (%)", _format(settings.compensation_percent), ""],
-        ["", "", "", "", ""],
-        ["File", "Point", "Original Potential", "Original Current", "Potential (V vs. RHE, iR-corrected)", "Current density"],
-        ["", "", "V", "mA", "V vs. RHE, iR-corrected", "mA/cm²"],
+        ir_metadata(resistance, fraction, resistance_source),
+        ["File", "Point", "Original Potential", "Original Current", f"Potential ({label})", "Current density"],
+        ["", "", "V", "mA", label, "mA/cm²"],
     ]
     for point, (potential, current_a) in enumerate(zip(data.potentials, data.currents), start=1):
         correction = current_a * (resistance or 0.0) * fraction
@@ -169,6 +168,7 @@ def write_durability_csv(
     destination: Path,
     settings: ProcessingSettings,
 ) -> None:
+    settings.validate()
     metadata = data.metadata
     area = settings.working_area_cm2
     resistance = settings.cp_solution_resistance_ohm
@@ -184,18 +184,18 @@ def write_durability_csv(
         ["Working area (cm^2)", _format(area), ""],
         ["Applied current density (mA/cm^2)", _format(current_density), ""],
         ["Solution resistance (ohm)", _format(None if data.is_amperometric else resistance), "Compensation level (%)", _format(None if data.is_amperometric else settings.cp_compensation_percent)],
-        ["", "", ""],
+        ir_metadata(resistance, fraction, "explicit" if resistance is not None else "not supplied") if not data.is_amperometric else ["iR correction applied", "not applicable", ""],
     ]
     if data.is_amperometric:
         rows.extend([["Time", "Original Current", "Current density"], ["sec", "A", "mA/cm²"]])
         rows.extend((_format(time), _format(current), _format(current * 1000 / area)) for time, current in zip(data.times_sec, data.values))
     else:
-        label = "V vs. RHE, iR-corrected"
+        label = "V vs. RHE, iR-corrected" if ir_applied(resistance, fraction) else "V vs. RHE"
         rows.extend([["Time", "Original Potential", "Potential", ""], ["sec", "V", label, ""]])
-        current_for_ir = applied_current or 0.0
+        corrected = data.corrected_potentials(settings.reference_potential_v, resistance, fraction)
         rows.extend(
-            (_format(time), _format(potential), _format(potential + settings.reference_potential_v - current_for_ir * (resistance or 0.0) * fraction), "")
-            for time, potential in zip(data.times_sec, data.values)
+            (_format(time), _format(potential), _format(adjusted), "")
+            for time, potential, adjusted in zip(data.times_sec, data.values, corrected)
         )
     _write_rows(destination, rows)
 

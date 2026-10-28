@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from correction_settings import finite_number, positive_area, parse_ir_fields, validate_ir, ir_applied, ir_metadata
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -244,9 +245,16 @@ class DurabilityPlotApp(ttk.Frame):
 
         rhe_offset, working_area, ir_compensation, setting_errors = self.get_plot_settings()
         if setting_errors:
-            messagebox.showwarning("Exporting without invalid transforms", setting_errors[0])
+            messagebox.showerror("Cannot export data", "\n".join(setting_errors))
+            self.status.set(setting_errors[0])
+            return
 
-        adjusted_potentials = self.get_adjusted_potentials(rhe_offset, ir_compensation)
+        try:
+            adjusted_potentials = self.get_adjusted_potentials(rhe_offset, ir_compensation)
+        except ValueError as exc:
+            messagebox.showerror("Cannot correct CP data", str(exc))
+            self.status.set(str(exc))
+            return
         output = Path(filename)
         with output.open("w", encoding="utf-8", newline="") as export:
             writer = csv.writer(export)
@@ -262,8 +270,13 @@ class DurabilityPlotApp(ttk.Frame):
             else:
                 resistance, compensation_fraction = ir_compensation
                 writer.writerow(
-                    ["Solution resistance (ohm)", f"{resistance:g}", "Compensation level (%)", f"{compensation_fraction * 100:g}"]
+                    ["Solution resistance (ohm)", self.format_optional_value(resistance), "Compensation level (%)", f"{compensation_fraction * 100:g}"]
                 )
+            resistance, fraction = ir_compensation if ir_compensation is not None else (None, 0.0)
+            if self.data.is_amperometric:
+                writer.writerow(["iR correction applied", "not applicable"])
+            else:
+                writer.writerow(ir_metadata(resistance, fraction, "explicit" if resistance is not None else "not supplied"))
             writer.writerow([])
             if self.data.is_amperometric:
                 output_label = "Current density (mA/cm^2)" if working_area is not None else "Current (A)"
@@ -317,50 +330,36 @@ class DurabilityPlotApp(ttk.Frame):
         raw_value = self.rhe_offset.get().strip()
         if not raw_value:
             return None
-        return float(raw_value)
+        return finite_number(raw_value, "Potential")
 
     def get_working_area(self) -> float | None:
         raw_value = self.working_area.get().strip()
         if not raw_value:
             return None
-        area = float(raw_value)
-        if area <= 0:
-            raise ValueError
-        return area
+        return positive_area(raw_value)
 
-    def get_ir_compensation(self) -> tuple[float, float] | None:
-        raw_rs = self.solution_resistance.get().strip()
-        raw_level = self.compensation_level.get().strip()
-        if not raw_rs and not raw_level:
-            return None
-        if not raw_rs or not raw_level:
-            raise ValueError
-
-        resistance = float(raw_rs)
-        level_percent = float(raw_level)
-        if resistance < 0 or level_percent < 0:
-            raise ValueError
-        return resistance, level_percent / 100
+    def get_ir_compensation(self) -> tuple[float | None, float] | None:
+        return parse_ir_fields(self.solution_resistance.get(), self.compensation_level.get())
 
     def get_plot_settings(self) -> tuple[float | None, float | None, tuple[float, float] | None, list[str]]:
         errors: list[str] = []
         try:
             rhe_offset = self.get_rhe_offset()
-        except ValueError:
+        except ValueError as exc:
             rhe_offset = None
-            errors.append("Ref electrode potential must be a number.")
+            errors.append(str(exc))
 
         try:
             working_area = self.get_working_area()
-        except ValueError:
+        except ValueError as exc:
             working_area = None
-            errors.append("Working area must be a positive number.")
+            errors.append(str(exc))
 
         try:
             ir_compensation = self.get_ir_compensation()
-        except ValueError:
+        except ValueError as exc:
             ir_compensation = None
-            errors.append("Rs and compensation level must be non-negative numbers.")
+            errors.append(str(exc))
 
         return rhe_offset, working_area, ir_compensation, errors
 
@@ -382,14 +381,8 @@ class DurabilityPlotApp(ttk.Frame):
                 return [current * 1000 / working_area for current in self.data.currents_a]
             return self.data.currents_a
 
-        adjusted = self.data.potentials_v
-        if rhe_offset is not None:
-            adjusted = [potential + rhe_offset for potential in adjusted]
-        if ir_compensation is not None and self.data.display_current_a is not None:
-            resistance, compensation_fraction = ir_compensation
-            correction = self.data.display_current_a * resistance * compensation_fraction
-            adjusted = [potential - correction for potential in adjusted]
-        return adjusted
+        resistance, fraction = ir_compensation if ir_compensation is not None else (None, 0.0)
+        return self.data.corrected_potentials(rhe_offset or 0.0, resistance, fraction)
 
     def _valid_working_area_or_none(self) -> float | None:
         try:
@@ -411,9 +404,9 @@ class DurabilityPlotApp(ttk.Frame):
             ir_compensation = self.get_ir_compensation()
         except ValueError:
             ir_compensation = None
-        if ir_compensation is not None and offset is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation) and offset is not None:
             return "Potential (V vs. RHE, iR-corrected)"
-        if ir_compensation is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation):
             return "Potential (V, iR-corrected)"
         if offset is None:
             return "Potential / V"
@@ -452,6 +445,10 @@ class DurabilityPlotApp(ttk.Frame):
             return
 
         rhe_offset, _working_area, ir_compensation, setting_errors = self.get_plot_settings()
+        if setting_errors:
+            self._draw_empty_plot()
+            self.status.set(setting_errors[0])
+            return
         y_range_error = None
         try:
             y_range = self.get_y_range()
@@ -460,7 +457,12 @@ class DurabilityPlotApp(ttk.Frame):
             y_range_error = str(exc)
 
         self.ax.clear()
-        adjusted_potentials = self.get_adjusted_potentials(rhe_offset, ir_compensation)
+        try:
+            adjusted_potentials = self.get_adjusted_potentials(rhe_offset, ir_compensation)
+        except ValueError as exc:
+            self._draw_empty_plot()
+            self.status.set(str(exc))
+            return
         self.ax.plot(self.data.times_sec, adjusted_potentials, color=ACCENT, linewidth=1.5)
         self.ax.set_xlabel("Time / s")
         self.ax.set_ylabel(self.get_value_axis_label())

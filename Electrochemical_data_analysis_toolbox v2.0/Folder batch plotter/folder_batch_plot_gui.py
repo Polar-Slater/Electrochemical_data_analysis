@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from correction_settings import finite_number, positive_area, validate_ir, parse_ir_fields, resistance_from_filename, ir_applied, ir_metadata
 import math
 import re
 import sys
@@ -739,6 +740,13 @@ class FolderBatchPlotApp(ttk.Frame):
         self.finish_plot("OCV", loaded, failures, details)
 
     def plot_lsv(self, items: list[FolderFile]) -> None:
+        try:
+            self.validate_correction_settings(items, tafel=False)
+        except ValueError as exc:
+            self._draw_empty_plot("LSV")
+            self.status.set(str(exc))
+            self.set_details(str(exc))
+            return
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
         loaded, failures, details = 0, [], []
@@ -773,6 +781,13 @@ class FolderBatchPlotApp(ttk.Frame):
         self.finish_plot("LSV", loaded, failures, details)
 
     def plot_tafel(self, items: list[FolderFile]) -> None:
+        try:
+            self.validate_correction_settings(items, tafel=True)
+        except ValueError as exc:
+            self._draw_empty_plot("LSV")
+            self.status.set(str(exc))
+            self.set_details(str(exc))
+            return
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
         loaded, failures, details = 0, [], []
@@ -932,6 +947,13 @@ class FolderBatchPlotApp(ttk.Frame):
         )
 
     def plot_cp(self, items: list[FolderFile]) -> None:
+        try:
+            self.validate_correction_settings(items, tafel=False)
+        except ValueError as exc:
+            self._draw_empty_plot("CP")
+            self.status.set(str(exc))
+            self.set_details(str(exc))
+            return
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
         loaded, failures, details = 0, [], []
@@ -941,10 +963,10 @@ class FolderBatchPlotApp(ttk.Frame):
         for item in items:
             try:
                 data = self.get_cp(item)
+                potentials = self.get_adjusted_cp_potentials(data, rhe_offset, cp_ir)
             except Exception as exc:
                 failures.append(f"{item.path.name}: {exc}")
                 continue
-            potentials = self.get_adjusted_cp_potentials(data, rhe_offset, cp_ir)
             self.ax.plot(data.times_sec, potentials, linewidth=1.4, label=item.label)
             current_density = self.cp_current_density(data)
             density_line = "" if current_density is None else f"\nCurrent density: {current_density:g} mA/cm^2"
@@ -1121,15 +1143,15 @@ class FolderBatchPlotApp(ttk.Frame):
 
     @staticmethod
     def rs_from_filename(item: FolderFile) -> float | None:
-        match = LSV_RS_VALUE.search(item.path.stem)
-        if match is None:
-            match = LSV_RS_VALUE.search(item.suffix)
-        if match is None:
-            return None
-        return float(match.group(1))
+        return resistance_from_filename(item.path)
 
     def get_lsv_rs_values(self) -> dict[Path, float]:
         values: dict[Path, float] = {}
+        for item in self.included_file_items():
+            if item.measurement == "LSV":
+                value = self.rs_from_filename(item)
+                if value is not None:
+                    values[item.path] = value
         if self.lsv_rs_text is None:
             return values
         by_name = {item.path.name.lower(): item.path for item in self.included_file_items() if item.measurement == "LSV"}
@@ -1141,10 +1163,7 @@ class FolderBatchPlotApp(ttk.Frame):
             raw_name, raw_value = [part.strip() for part in line.split("=", 1)]
             if not raw_value:
                 continue
-            try:
-                value = float(raw_value)
-            except ValueError:
-                continue
+            value = validate_ir(raw_value, 0)[0]
             path = by_name.get(raw_name.lower()) or by_stem.get(raw_name.lower())
             if path is not None:
                 values[path] = value
@@ -1154,28 +1173,37 @@ class FolderBatchPlotApp(ttk.Frame):
         raw_value = self.compensation_level.get().strip()
         if not raw_value:
             return None, None
-        try:
-            level = float(raw_value)
-        except ValueError:
-            return None, "Compensation level must be a number."
-        if level < 0:
-            return None, "Compensation level must be non-negative."
-        return level / 100, None
+        return validate_ir(None, raw_value, require_resistance=False)[1], None
 
     def get_rhe_offset(self) -> tuple[float | None, str | None]:
         raw_value = self.rhe_offset.get().strip()
-        if not raw_value:
-            return None, None
-        try:
-            return float(raw_value), None
-        except ValueError:
-            return None, "Reference electrode potential must be a number."
+        return (finite_number(raw_value, "Reference potential") if raw_value else None), None
 
     def get_equilibrium_potential(self) -> float:
         raw_value = self.equilibrium_potential.get().strip()
-        if not raw_value:
-            return 1.23
-        return float(raw_value)
+        return finite_number(raw_value, "Equilibrium potential") if raw_value else 1.23
+
+    def validate_correction_settings(self, items, *, tafel=False):
+        self.get_working_area()
+        self.get_rhe_offset()
+        if tafel:
+            self.get_equilibrium_potential()
+        lsv = [item for item in items if item.measurement == "LSV"]
+        if lsv:
+            fraction, _ = self.get_compensation_fraction()
+            values = self.get_lsv_rs_values()
+            for item in lsv:
+                try:
+                    validate_ir(values.get(item.path), (fraction or 0.0) * 100)
+                except ValueError as exc:
+                    raise ValueError(f"{item.path.name}: {exc}") from exc
+        if any(item.measurement == "CP" for item in items):
+            self.get_cp_ir_compensation()
+
+    def lsv_resistance_source(self, item, value):
+        if value is None:
+            return "not supplied"
+        return "filename" if value == self.rs_from_filename(item) else "per-file override"
 
     @staticmethod
     def get_adjusted_lsv_potentials(
@@ -1184,6 +1212,7 @@ class FolderBatchPlotApp(ttk.Frame):
         rs_value: float | None,
         compensation_fraction: float | None,
     ) -> list[float]:
+        rs_value, compensation_fraction = validate_ir(rs_value, (compensation_fraction or 0.0) * 100)
         adjusted = data.potentials
         if rhe_offset is not None:
             adjusted = [potential + rhe_offset for potential in adjusted]
@@ -1216,7 +1245,7 @@ class FolderBatchPlotApp(ttk.Frame):
         rs_values: dict[Path, float],
         items: list[FolderFile],
     ) -> str:
-        has_ir = compensation_fraction is not None and any(item.path in rs_values for item in items)
+        has_ir = any(ir_applied(rs_values.get(item.path), compensation_fraction) for item in items)
         if has_ir and rhe_offset is not None:
             return "Potential (V vs. RHE, iR-corrected)"
         if has_ir:
@@ -1264,7 +1293,10 @@ class FolderBatchPlotApp(ttk.Frame):
                 warnings.append(str(exc))
 
         if not written:
-            messagebox.showinfo("No data exported", "No readable LSV, Tafel, EIS, ECSA, or CP data were found.")
+            message = "No readable LSV, Tafel, EIS, ECSA, or CP data were found."
+            if warnings:
+                message += "\n\n" + "\n".join(warnings[:5])
+            messagebox.showinfo("No data exported", message)
             self.status.set("No data exported.")
             return
 
@@ -1278,6 +1310,8 @@ class FolderBatchPlotApp(ttk.Frame):
         items = [item for item in self.included_file_items() if item.measurement == "LSV"]
         if not items:
             return []
+
+        self.validate_correction_settings(items, tafel=False)
 
         scale = self.current_scale()
         original_scale = 1000
@@ -1305,6 +1339,9 @@ class FolderBatchPlotApp(ttk.Frame):
                 writer.writerow(["Source file", item.path.name])
                 writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
                 writer.writerow(["Working area (cm^2)", self.format_optional_value(self.safe_working_area())])
+                rs = rs_values.get(item.path)
+                writer.writerow(["Solution resistance (ohm)", self.format_optional_value(rs), "Compensation level (%)", (compensation_fraction or 0.0) * 100])
+                writer.writerow(ir_metadata(rs, compensation_fraction, self.lsv_resistance_source(item, rs)))
                 writer.writerow([])
                 writer.writerow(["Point", "Original Potential (V)", "Original Current (mA)", self.lsv_potential_axis_label(rhe_offset, compensation_fraction, rs_values, [item]), self.current_axis_label()])
                 for index, values in enumerate(
@@ -1327,6 +1364,8 @@ class FolderBatchPlotApp(ttk.Frame):
         items = [item for item in self.included_file_items() if item.measurement == "LSV"]
         if not items:
             return []
+
+        self.validate_correction_settings(items, tafel=True)
 
         try:
             working_area = self.get_working_area()
@@ -1365,6 +1404,9 @@ class FolderBatchPlotApp(ttk.Frame):
                 writer.writerow(["Reference electrode potential (V vs. RHE)", self.format_optional_value(rhe_offset)])
                 writer.writerow(["Equilibrium potential (V vs. RHE)", f"{equilibrium_potential:g}"])
                 writer.writerow(["Working area (cm^2)", f"{working_area:g}"])
+                rs = rs_values.get(item.path)
+                writer.writerow(["Solution resistance (ohm)", self.format_optional_value(rs), "Compensation level (%)", (compensation_fraction or 0.0) * 100])
+                writer.writerow(ir_metadata(rs, compensation_fraction, self.lsv_resistance_source(item, rs)))
                 writer.writerow([])
                 writer.writerow(["Point", "Corrected potential (V)", "Current density (mA/cm^2)", "log10(|j| / mA cm^-2)", "Overpotential (V)"])
                 for potential, current in zip(adjusted_potentials, data.currents):
@@ -1505,18 +1547,24 @@ class FolderBatchPlotApp(ttk.Frame):
         if not items:
             return []
 
+        self.validate_correction_settings(items, tafel=False)
+
         rhe_offset, _rhe_error = self.get_rhe_offset()
         cp_ir, _cp_ir_error = self.get_cp_ir_compensation()
         written: list[Path] = []
 
+        # Validate every CP trace before replacing any existing CP exports.
+        prepared = []
         for item in items:
+            data = self.get_cp(item)
             try:
-                data = self.get_cp(item)
-            except Exception:
-                continue
+                adjusted = self.get_adjusted_cp_potentials(data, rhe_offset, cp_ir)
+            except ValueError as exc:
+                raise ValueError(f"{item.path.name}: {exc}") from exc
+            prepared.append((item, data, adjusted))
 
+        for item, data, adjusted_potentials in prepared:
             output = output_dir / f"{item.path.stem}_durability_data.csv"
-            adjusted_potentials = self.get_adjusted_cp_potentials(data, rhe_offset, cp_ir)
             current_density = self.cp_current_density(data)
             rows_written = 0
             with output.open("w", encoding="utf-8-sig", newline="") as destination:
@@ -1528,7 +1576,9 @@ class FolderBatchPlotApp(ttk.Frame):
                     writer.writerow(["Solution resistance (ohm)", "", "Compensation level (%)", ""])
                 else:
                     resistance, compensation_fraction = cp_ir
-                    writer.writerow(["Solution resistance (ohm)", f"{resistance:g}", "Compensation level (%)", f"{compensation_fraction * 100:g}"])
+                    writer.writerow(["Solution resistance (ohm)", self.format_optional_value(resistance), "Compensation level (%)", f"{compensation_fraction * 100:g}"])
+                rs, fraction = cp_ir if cp_ir is not None else (None, 0.0)
+                writer.writerow(ir_metadata(rs, fraction, "explicit" if rs is not None else "not supplied"))
                 writer.writerow([])
                 writer.writerow(["Mode", "Current (A)", "Time (s)", "Current density (mA/cm^2)", "Time (sec)", "Original Potential (V)", self.cp_potential_axis_label(rhe_offset, cp_ir)])
                 for time_sec, original, adjusted in zip(data.times_sec, data.potentials_v, adjusted_potentials):
@@ -1569,10 +1619,7 @@ class FolderBatchPlotApp(ttk.Frame):
         raw_value = self.working_area.get().strip()
         if not raw_value:
             return None
-        area = float(raw_value)
-        if area <= 0:
-            raise ValueError
-        return area
+        return positive_area(raw_value)
 
     def get_y_range(self) -> tuple[tuple[float, float] | None, str | None]:
         raw_min = self.y_min.get().strip()
@@ -1635,21 +1682,8 @@ class FolderBatchPlotApp(ttk.Frame):
             return "ohm"
         return "ohm cm^2"
 
-    def get_cp_ir_compensation(self) -> tuple[tuple[float, float] | None, str | None]:
-        raw_rs = self.cp_solution_resistance.get().strip()
-        raw_level = self.cp_compensation_level.get().strip()
-        if not raw_rs and not raw_level:
-            return None, None
-        if not raw_rs or not raw_level:
-            return None, "CP Rs and compensation level must both be filled, or both blank."
-        try:
-            resistance = float(raw_rs)
-            level = float(raw_level)
-        except ValueError:
-            return None, "CP Rs and compensation level must be numbers."
-        if resistance < 0 or level < 0:
-            return None, "CP Rs and compensation level must be non-negative."
-        return (resistance, level / 100), None
+    def get_cp_ir_compensation(self) -> tuple[tuple[float | None, float] | None, str | None]:
+        return parse_ir_fields(self.cp_solution_resistance.get(), self.cp_compensation_level.get()), None
 
     @staticmethod
     def get_adjusted_cp_potentials(
@@ -1657,23 +1691,17 @@ class FolderBatchPlotApp(ttk.Frame):
         rhe_offset: float | None,
         ir_compensation: tuple[float, float] | None,
     ) -> list[float]:
-        adjusted = data.potentials_v
-        if rhe_offset is not None:
-            adjusted = [potential + rhe_offset for potential in adjusted]
-        if ir_compensation is not None and data.display_current_a is not None:
-            resistance, compensation_fraction = ir_compensation
-            correction = data.display_current_a * resistance * compensation_fraction
-            adjusted = [potential - correction for potential in adjusted]
-        return adjusted
+        resistance, fraction = ir_compensation if ir_compensation is not None else (None, 0.0)
+        return data.corrected_potentials(rhe_offset or 0.0, resistance, fraction)
 
     def cp_potential_axis_label(
         self,
         rhe_offset: float | None,
         ir_compensation: tuple[float, float] | None,
     ) -> str:
-        if ir_compensation is not None and rhe_offset is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation) and rhe_offset is not None:
             return "Potential (V vs. RHE, iR-corrected)"
-        if ir_compensation is not None:
+        if ir_compensation is not None and ir_applied(*ir_compensation):
             return "Potential (V, iR-corrected)"
         if rhe_offset is not None:
             return "Potential (V vs. RHE)"
